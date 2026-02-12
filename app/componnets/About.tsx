@@ -1,10 +1,12 @@
 "use client"
 import Image from 'next/image'
+import { useRouter } from 'next/navigation';
 import React, { useState } from 'react'
 
 
 const About = () => {
   const [activeTab, setActiveTab] = useState<'administration' | 'about'>('administration');
+  const router = useRouter();
   return (
     <div className='h-screen overflow-hidden flex flex-col lg:flex-row gap-6 p-4 md:p-6 lg:p-8'>
       {/* Left side image */}
@@ -36,7 +38,7 @@ const About = () => {
           />
 
           {/* Heading */}
-          <h1 className='text-[18px] font-bold text-gray-900 text-center'>
+          <h1 className='text-[18px] font-semibold text-gray-900 text-center'>
             Welcome to DHA Karachi
           </h1>
 
@@ -113,7 +115,7 @@ const About = () => {
 
           {/* Back Button */}
           <div className='flex justify-center w-full'>
-            <button className='flex-1 py-2 mx-10 bg-[#30B33D] text-white rounded-lg font-semibold hover:bg-[#30B33D]/90 transition-colors shadow-md text-sm md:text-base'>
+            <button onClick={() => router.back()} className='flex-1 py-2 mx-10 bg-[#30B33D] text-white rounded-lg font-semibold hover:bg-[#30B33D]/90 transition-colors shadow-md text-sm md:text-base'>
               Back
             </button>
           </div>

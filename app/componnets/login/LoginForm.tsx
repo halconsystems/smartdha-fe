@@ -5,9 +5,12 @@ import Image from "next/image";
 import { FaUser } from "react-icons/fa";
 import { FaEarListen } from "react-icons/fa6";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { useRouter } from "next/navigation";
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
+
+  const router = useRouter()
 
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row bg-[#F3F6F9] overflow-hidden">
@@ -138,18 +141,18 @@ const LoginForm = () => {
 
       {/* FOOTER LINKS */}
       <div className="flex items-center justify-center gap-3 sm:gap-4 md:gap-6 flex-wrap">
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <button onClick={()=> router.push('/contact-support')} className="flex items-center gap-1.5 sm:gap-2">
           <FaUser className="text-[#30B33D] w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
           <span className="text-[12px] sm:text-[13px] md:text-[14px] font-medium text-gray-800">
             Contact Support
           </span>
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        </button>
+        <button onClick={()=> router.push('/about')} className="flex items-center gap-1.5 sm:gap-2">
           <FaEarListen className="text-[#30B33D] w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
           <span className="text-[12px] sm:text-[13px] md:text-[14px] font-medium text-gray-800">
             About Us
           </span>
-        </div>
+        </button>
       </div>
 
     </div>
