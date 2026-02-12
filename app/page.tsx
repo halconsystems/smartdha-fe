@@ -18,7 +18,7 @@ function Page() {
     );
   }
 
-  return <LoginForm />;
+  return <></>;
 }
 
 export default Page;
