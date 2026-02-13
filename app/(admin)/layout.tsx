@@ -1,57 +1,54 @@
 "use client";
 
-import { useState, useCallback } from "react";
 import LeftSidebar from "../componnets/shared/LeftSidebar";
 import Navbar from "../componnets/shared/Navbar";
 import RightSidebar from "../componnets/shared/RightSidebar";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarState, setSidebarState] = useState({ isOpen: true, isMobile: false });
-
-  // Calculate margin based on sidebar state
-  const getMainMargin = () => {
-    if (sidebarState.isMobile) {
-      return 'lg:ml-0';
-    }
-    return sidebarState.isOpen ? 'lg:ml-64' : 'lg:ml-20';
-  };
-
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <div className="min-h-screen bg-gray-50 flex overflow-x-hidden">
-      
-      {/* left Sidebar */}
-      <LeftSidebar />
+    /**
+     * Root container — full viewport height, no overflow on the outer shell.
+     * Three columns: left sidebar | main area | right sidebar
+     */
+    <div className="h-screen w-screen flex overflow-hidden bg-gray-100">
 
-      {/* Main Wrapper */}
-      <div className={`flex-1 min-w-0 flex flex-col transition-all duration-300 ${getMainMargin()}`}>
-        
-        {/* Navbar */}
-        <header className="sticky top-0 z-20 bg-white border-b border-gray-200 w-full">
+      {/* ─── LEFT SIDEBAR ─── fixed width, full height, no scroll leakage */}
+      <aside className="hidden lg:flex flex-shrink-0 w-[280px] h-full border-r border-gray-200 bg-white overflow-y-auto overflow-x-hidden">
+        <LeftSidebar />
+      </aside>
+
+      {/* ─── CENTER COLUMN ─── fills remaining space between the two sidebars */}
+      <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
+
+        {/* Sticky Navbar */}
+        <header className="flex-shrink-0 z-20">
           <Navbar />
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-          
-          {/* Center Content Controller */}
-          <div className="w-full max-w-[1400px] mx-auto">
-            
-            {/* Card Container */}
-            <div className=" rounded-xl shadow-sm border p-3 sm:p-4 md:p-6 min-h-[calc(100vh-110px)]">
+        {/* Scrollable page body */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
 
-                <div className="mt-4 md:mt-6 w-full">
-                  {children}
-                </div>
+          {/* Equal padding on all four sides; max-width keeps content readable */}
+          <div className="p-6 w-full max-w-[1200px] mx-auto">
 
+            {/* Card that wraps every page's content */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+              {children}
             </div>
 
           </div>
-
         </main>
       </div>
 
-      {/* right Sidebar */}
-      <RightSidebar />
+      {/* ─── RIGHT SIDEBAR ─── mirror of left sidebar */}
+      <aside className="hidden xl:flex flex-shrink-0 w-[280px] h-full border-l border-gray-200 bg-white overflow-y-auto overflow-x-hidden">
+        <RightSidebar />
+      </aside>
+
     </div>
   );
 }
