@@ -181,8 +181,8 @@ export default function RightSidebar() {
           </div>
 
           {/* Contact mini-card */}
-          <div className="w-full rounded-lg space-y-1.5 shadow-[0_0_15px_rgba(0,0,0,0.25)]">
-            <div className="flex items-center gap-3  px-3 py-2.5">
+          <div className="w-full rounded-lg space-y-1.5 shadow-[0_0_10px_rgba(0,0,0,0.25)]">
+            <div className="flex items-center gap-3  px-3 pt-2 pb-1">
               {/* phone icon */}
               <div className="bg-white p-2 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.25)]">
                 <SvgIcon name="phone-icon" size={12} className="" />
@@ -190,7 +190,7 @@ export default function RightSidebar() {
               <span className="text-[12px] text-black font-medium">+92 300 1234567</span>
             </div>
             <div className="w-full h-px bg-[#ECECEC]" />
-            <div className="flex items-center gap-3  px-3 py-2.5">
+            <div className="flex items-center gap-3  px-3 pb-2 pt-1">
               {/* email icon */}
               <div className="bg-white px-2 py-2.5 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.25)]">
                 <SvgIcon name="email-icon" size={12} className="" />
@@ -208,7 +208,7 @@ export default function RightSidebar() {
       {/* ════════════════════════════════════════
           SECTION 2 — Notifications
       ════════════════════════════════════════ */}
-      <div className="flex flex-col flex-1 min-h-0 px-4 py-5 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 px-4 py-3 overflow-hidden">
 
         {/* Heading row */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0">
@@ -232,10 +232,10 @@ export default function RightSidebar() {
           {notifications.map((notif) => (
             <div
               key={notif.id}
-              className={`flex items-start gap-2.5 px-3 py-3 transition-colors hover:bg-white}`}
+              className={`flex items-center  gap-2.5 px-3 py-3 transition-colors hover:bg-white}`}
             >
               {/* notification icon */}
-              <div className="bg-white px-2 py-2 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.25)]">
+              <div className="bg-[#F5F5FA] px-2 py-2 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.25)]">
                 <SvgIcon name="notification-icon" size={14} className="" />
               </div>
 
@@ -281,7 +281,7 @@ export default function RightSidebar() {
 
         {/* Large count */}
         <p
-          className="text-[32px] font-semibold text-[#30B33D] leading-none mb-4"
+          className="text-[32px] font-semibold text-[#30B33D] leading-none"
         >
           {stats.totalMembers}
         </p>

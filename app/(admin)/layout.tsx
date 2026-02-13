@@ -36,7 +36,7 @@ export default function DashboardLayout({
           <div className="p-6 w-full max-w-[1200px] mx-auto">
 
             {/* Card that wraps every page's content */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+            <div className="">
               {children}
             </div>
 
