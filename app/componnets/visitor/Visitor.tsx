@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FiChevronLeft,
   FiChevronRight,
@@ -30,6 +31,7 @@ type UpcomingVisitorsType = {
 /* ================= COMPONENT ================= */
 
 const Visitor = () => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     "Upcoming Visitors" | "Previous Visitors"
   >("Upcoming Visitors");
@@ -97,6 +99,7 @@ const Visitor = () => {
     <div className="w-full">
       <div className="flex justify-end mb-6">
         <button
+          onClick={() => router.push("/visitor/add-visitor-quick")}
           className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                      text-white text-sm font-semibold px-4 py-2 rounded-xl
                      hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
