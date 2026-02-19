@@ -62,7 +62,7 @@ const membershipItems: DropdownItem[] = [
   },
   {
     label: "Luggage Pass",
-    href: "/luggage-pass",
+    href: "/luggage",
     icon: <SvgIcon name="luggage-pass-icon" size={16} />,
     activeIcon: <SvgIcon name="luggage-pass-icon-color" size={16} />,
   },
