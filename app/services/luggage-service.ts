@@ -33,12 +33,32 @@ export class LuggageService {
 
   // Update existing luggage pass
   async updateLuggagePass(data: UpdateLuggagePassCommand): Promise<ApiResponse<LuggagePass>> {
-    return apiClient.post(`${this.baseUrl}/update-luggagepass`, data);
+    // Extract id and update data, send specific user ID as query parameter
+    const { id, ...updateData } = data;
+    const loggedInUserId = this.getLoggedInUserId();
+    const requestData = {
+      id: id, // Include luggage pass ID in body as well
+      ...updateData
+    };
+    return apiClient.post(`${this.baseUrl}/update-luggagepass?Id=${loggedInUserId}`, requestData);
+  }
+
+  // Helper method to get logged-in user ID
+  private getLoggedInUserId(): string {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('loggedInUserId') || '8374841e-ab5b-454e-8294-e7a484237c96';
+    }
+    return '8374841e-ab5b-454e-8294-e7a484237c96';
+  }
+
+  // Get luggage pass by ID
+  async getLuggagePassById(id: string): Promise<ApiResponse<LuggagePass>> {
+    return apiClient.get(`${this.baseUrl}/${id}`);
   }
 
   // Delete luggage pass
   async deleteLuggagePass(id: string): Promise<ApiResponse<void>> {
-    return apiClient.post(`${this.baseUrl}/delete-luggagepass`, { id });
+    return apiClient.post(`${this.baseUrl}/delete-luggagepass?id=${id}`);
   }
 
   // Get all luggage passes (upcoming and previous)
@@ -46,7 +66,7 @@ export class LuggageService {
     upcomingLuggage: LuggagePass[];
     previousLuggage: LuggagePass[];
   }>> {
-    return apiClient.get(`${this.baseUrl}/getall`);
+    return apiClient.post(`${this.baseUrl}/getall`, {});
   }
 }
 

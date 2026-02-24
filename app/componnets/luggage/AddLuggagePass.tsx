@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { luggageService } from "../../services/luggage-service";
-import { CreateLuggagePassCommand } from "../../types/api";
+import { CreateLuggagePassCommand, UpdateLuggagePassCommand } from "../../types/api";
 import SuccessModal from "../shared/SuccessModal";
 
 type FormData = {
@@ -73,8 +73,63 @@ const TextInput = React.memo(({
 
 TextInput.displayName = 'TextInput';
 
-const AddLuggagePass: React.FC = () => {
+const AddLuggagePass = () => {
   const router = useRouter();
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+
+  // Check for edit data on component mount
+  useEffect(() => {
+    const editData = localStorage.getItem('editLuggageData');
+    if (editData) {
+      try {
+        const parsedData = JSON.parse(editData);
+        setIsEditMode(true);
+        setEditId(parsedData.id);
+
+        // If we have an ID, fetch the latest data from API
+        if (parsedData.id) {
+          loadLuggagePassData(parsedData.id);
+        } else {
+          // Fallback to localStorage data
+          populateFormFromData(parsedData);
+        }
+
+        // Clear edit data after loading
+        localStorage.removeItem('editLuggageData');
+      } catch (error) {
+        console.error('Error parsing edit data:', error);
+      }
+    }
+  }, []);
+
+  // Load luggage pass data by ID
+  const loadLuggagePassData = async (id: string) => {
+    try {
+      const response = await luggageService.getLuggagePassById(id);
+      if (response) {
+        populateFormFromData(response);
+      } else {
+        setError("Failed to load luggage pass data");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load luggage pass data");
+    }
+  };
+
+  // Populate form with data
+  const populateFormFromData = (data: any) => {
+    setFormData({
+      fullName: data.name || '',
+      cnicNo: data.cnic || '',
+      vehicleNoAlpha: data.vehicleLicensePlate?.split('-')[0] || '',
+      vehicleNoNumeric: data.vehicleLicensePlate?.split('-')[1] || '',
+      licensePlate: data.vehicleLicensePlate || '',
+      description: data.description || '',
+      validityDate: data.validTo ? new Date(data.validTo).toISOString().split('T')[0] : '',
+    });
+  };
+
   const [formData, setFormData] = useState<FormData>({
     fullName: "",
     cnicNo: "",
@@ -115,23 +170,54 @@ const AddLuggagePass: React.FC = () => {
         : formData.licensePlate;
 
       // Convert to API format
-      const luggagePassData: CreateLuggagePassCommand = {
+      const luggagePassData = isEditMode && editId ? {
+        id: editId,
         name: formData.fullName,
         cnic: formData.cnicNo,
         vehicleLicensePlate: formData.licensePlate || undefined,
         vehicleLicenseNo: formData.vehicleNoNumeric ? parseInt(formData.vehicleNoNumeric) : undefined,
         description: formData.description || undefined,
-        ...(formData.validityDate && { validityDate: new Date(formData.validityDate).toISOString() }),
+        validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
+        validTo: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
+      } : {
+        name: formData.fullName,
+        cnic: formData.cnicNo,
+        vehicleLicensePlate: formData.licensePlate || undefined,
+        vehicleLicenseNo: formData.vehicleNoNumeric ? parseInt(formData.vehicleNoNumeric) : undefined,
+        description: formData.description || undefined,
+        validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
+        validTo: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
       };
 
-      const response = await luggageService.createLuggagePass(luggagePassData);
+      let response;
+      if (isEditMode && editId) {
+        // Update existing luggage pass
+        const updateData = {
+          name: formData.fullName,
+          cnic: formData.cnicNo,
+          vehicleLicensePlate: formData.licensePlate || undefined,
+          vehicleLicenseNo: formData.vehicleNoNumeric ? parseInt(formData.vehicleNoNumeric) : undefined,
+          description: formData.description || undefined,
+          validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
+          validTo: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
+        };
+        
+        response = await luggageService.updateLuggagePass({
+          id: editId,
+          ...updateData
+        });
+        setSuccessMessage("Luggage pass updated successfully!");
+      } else {
+        // Create new luggage pass
+        response = await luggageService.createLuggagePass(luggagePassData);
+        setSuccessMessage("Luggage pass created successfully!");
+      }
       
-      if (response.succeeded) {
+      if ((response as any).succeeded) {
         // Show success modal
-        setSuccessMessage(response.data.message || "Luggage pass created successfully!");
         setShowSuccessModal(true);
       } else {
-        setError(response.data.message || "Failed to create luggage pass");
+        setError("Failed to save luggage pass");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -276,7 +362,7 @@ const AddLuggagePass: React.FC = () => {
               disabled={loading}
               className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Creating..." : "Add Luggage Pass"}
+              {loading ? (isEditMode ? "Updating..." : "Creating...") : (isEditMode ? "Update Luggage Pass" : "Add Luggage Pass")}
             </button>
           </div>
         </form>

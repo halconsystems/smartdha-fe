@@ -7,6 +7,8 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import SvgIcon from "../shared/SvgIcon";
+import WarningModal from "../shared/WarningModal";
+import SuccessModal from "../shared/SuccessModal";
 import { luggageService } from "../../services/luggage-service";
 
 /* ================= TYPES ================= */
@@ -43,6 +45,10 @@ const LuggagePass = () => {
   const [error, setError] = useState<string | null>(null);
   const [upcomingLuggage, setUpcomingLuggage] = useState<any[]>([]);
   const [previousLuggage, setPreviousLuggage] = useState<any[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Load data from API
   const loadLuggagePasses = async () => {
@@ -85,6 +91,48 @@ const LuggagePass = () => {
     } catch {
       return dateString;
     }
+  };
+
+  const handleEdit = (item: any) => {
+    // Store the luggage pass ID in localStorage for the add form to pick up
+    localStorage.setItem('editLuggageData', JSON.stringify({ id: item.id }));
+    router.push('/luggage/add-luggage-pass');
+  };
+
+  const handleDelete = (item: any) => {
+    setItemToDelete(item);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (itemToDelete) {
+      try {
+        const response = await luggageService.deleteLuggagePass(itemToDelete.id);
+        if ((response as any).succeeded) {
+          // Show success modal with message from API
+          setSuccessMessage((response as any).data?.message || "Luggage pass deleted successfully!");
+          setShowSuccessModal(true);
+          // Reload data to refresh the list
+          loadLuggagePasses();
+        } else {
+          setError("Failed to delete luggage pass");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to delete luggage pass");
+      } finally {
+        setShowDeleteModal(false);
+        setItemToDelete(null);
+      }
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setItemToDelete(null);
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
   };
 
   /* ================= PAGINATION ================= */
@@ -251,10 +299,16 @@ const LuggagePass = () => {
 
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-3">
-                      <button className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200">
+                      <button 
+                        onClick={() => handleEdit(item)}
+                        className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200"
+                      >
                         <SvgIcon name="Edit-Icon" size={14} />
                       </button>
-                      <button className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200">
+                      <button 
+                        onClick={() => handleDelete(item)}
+                        className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200"
+                      >
                        <SvgIcon name="delete-icon" size={14} />
                       </button>
                     </div>
@@ -313,6 +367,25 @@ const LuggagePass = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <WarningModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Delete Luggage Pass"
+        message={`Are you sure you want to delete the luggage pass for ${itemToDelete?.name || 'this item'}? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={handleSuccessModalClose}
+        title="Delete Successful"
+        message={successMessage}
+      />
     </div>
   );
 };
