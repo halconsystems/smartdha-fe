@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { visitorService } from "../../services/visitor-service";
+import { VisitorPassType } from "../../types/api";
 
 type FormData = {
   fullName: string;
@@ -12,6 +14,61 @@ type FormData = {
   fromDate: string;
   toDate: string;
 };
+
+// Reusable field box
+const FieldBox = ({ children }: { children: React.ReactNode }) => (
+  <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 relative">
+    {children}
+  </div>
+);
+
+// Reusable label
+const FieldLabel = ({
+  text,
+  required = false,
+  green = true,
+}: {
+  text: string;
+  required?: boolean;
+  green?: boolean;
+}) => (
+  <label className={`block text-xs font-semibold mb-1.5 ${green ? "text-[#30B33D]" : "text-gray-700"}`}>
+    {text} {required && <span className="text-red-500">*</span>}
+  </label>
+);
+
+// Reusable input - moved outside component to prevent re-rendering
+const TextInput = ({
+  name,
+  value,
+  placeholder,
+  type = "text",
+  required = false,
+  maxLength,
+  pattern,
+  onChange,
+}: {
+  name: keyof FormData;
+  value: string;
+  placeholder: string;
+  type?: string;
+  required?: boolean;
+  maxLength?: number;
+  pattern?: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+}) => (
+  <input
+    type={type}
+    name={name}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    required={required}
+    maxLength={maxLength}
+    pattern={pattern}
+    className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
+  />
+);
 
 const AddVisitorQuickForm: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
@@ -25,6 +82,11 @@ const AddVisitorQuickForm: React.FC = () => {
     toDate: "",
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
@@ -32,64 +94,55 @@ const AddVisitorQuickForm: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    console.log("Form Data:", formData);
-    // Handle form submission here
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Prepare data for API matching curl example format
+      const visitorData = {
+        name: formData.fullName,
+        cnic: formData.cnicNo,
+        vehicleLicensePlate: formData.licensePlate,
+        vehicleLicenseNo: formData.vehicleNoNumeric,
+        visitorPassType: formData.quickPick === "dayPass" ? VisitorPassType.DAY_PASS : VisitorPassType.LONG_STAY,
+        validFrom: formData.quickPick === "longStay" ? formData.fromDate : new Date().toISOString(),
+        validTo: formData.toDate,
+      };
+
+      const response = await visitorService.quickAddVisitor(visitorData);
+      
+      if (response.succeeded) {
+        setSuccess("Visitor Pass Created Successfully");
+        setShowSuccessModal(true);
+        // Reset form
+        setFormData({
+          fullName: "",
+          cnicNo: "",
+          vehicleNoAlpha: "",
+          vehicleNoNumeric: "",
+          licensePlate: "",
+          quickPick: "dayPass",
+          fromDate: "",
+          toDate: "",
+        });
+      } else {
+        setError(response.message || "Failed to add visitor pass");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Reusable field box
-  const FieldBox = ({ children }: { children: React.ReactNode }) => (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 relative">
-      {children}
-    </div>
-  );
-
-  // Reusable label
-  const FieldLabel = ({
-    text,
-    required = false,
-    green = true,
-  }: {
-    text: string;
-    required?: boolean;
-    green?: boolean;
-  }) => (
-    <label className={`block text-xs font-semibold mb-1.5 ${green ? "text-[#30B33D]" : "text-gray-700"}`}>
-      {text} {required && <span className="text-red-500">*</span>}
-    </label>
-  );
-
-  // Reusable input
-  const TextInput = ({
-    name,
-    value,
-    placeholder,
-    type = "text",
-    required = false,
-    maxLength,
-    pattern,
-  }: {
-    name: keyof FormData;
-    value: string;
-    placeholder: string;
-    type?: string;
-    required?: boolean;
-    maxLength?: number;
-    pattern?: string;
-  }) => (
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={handleInputChange}
-      placeholder={placeholder}
-      required={required}
-      maxLength={maxLength}
-      pattern={pattern}
-      className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
-    />
-  );
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    // Redirect to visitor listing page
+    window.location.href = '/visitor';
+  };
 
   return (
     <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
@@ -100,6 +153,20 @@ const AddVisitorQuickForm: React.FC = () => {
             Please provide visitor details below!
           </p>
         </div>
+
+        {/* Error Messages */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Success Messages */}
+        {success && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-700 text-sm">{success}</p>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
@@ -112,6 +179,7 @@ const AddVisitorQuickForm: React.FC = () => {
                 value={formData.fullName}
                 placeholder="Enter full name"
                 required
+                onChange={handleInputChange}
               />
             </FieldBox>
 
@@ -121,6 +189,7 @@ const AddVisitorQuickForm: React.FC = () => {
                 name="cnicNo"
                 value={formData.cnicNo}
                 placeholder="12345-1234567-1"
+                onChange={handleInputChange}
               />
             </FieldBox>
           </div>
@@ -130,12 +199,12 @@ const AddVisitorQuickForm: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FieldBox>
               <FieldLabel text="Vehicle No." required />
-              <TextInput name="vehicleNoAlpha" value={formData.vehicleNoAlpha} placeholder="ABC Only" required />
+              <TextInput name="vehicleNoAlpha" value={formData.vehicleNoAlpha} placeholder="ABC Only" required onChange={handleInputChange} />
             </FieldBox>
 
             <FieldBox>
               <FieldLabel text="Vehicle No." required />
-              <TextInput name="vehicleNoNumeric" value={formData.vehicleNoNumeric} placeholder="123 Only" required />
+              <TextInput name="vehicleNoNumeric" value={formData.vehicleNoNumeric} placeholder="123 Only" required onChange={handleInputChange} />
             </FieldBox>
 
             </div>
@@ -146,6 +215,7 @@ const AddVisitorQuickForm: React.FC = () => {
                   name="licensePlate"
                   value={formData.licensePlate}
                   placeholder="ABC-123"
+                  onChange={handleInputChange}
                 />
               </FieldBox>
               <div></div> {/* Empty div for alignment */}
@@ -195,29 +265,53 @@ const AddVisitorQuickForm: React.FC = () => {
         </div>
           {/* Row 5: Date Selection */}
           <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FieldBox>
-                <FieldLabel text="From Date" required />
-                <TextInput
-                  name="fromDate"
-                  value={formData.fromDate}
-                  type="date"
-                  placeholder="Select start date"
-                  required
-                />
-              </FieldBox>
+            {formData.quickPick === "dayPass" ? (
+              // Day Pass - Only show To Date
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                <FieldBox>
+                  <FieldLabel text="To Date" required />
+                  <TextInput
+                    name="toDate"
+                    value={formData.toDate}
+                    type="date"
+                    placeholder="Select end date"
+                    required
+                    onChange={handleInputChange}
+                  />
+                </FieldBox>
+              </div>
+              <div></div>
+              </div>
+             
+            ) : (
+              // Long Stay - Show both From Date and To Date
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FieldBox>
+                  <FieldLabel text="From Date" required />
+                  <TextInput
+                    name="fromDate"
+                    value={formData.fromDate}
+                    type="date"
+                    placeholder="Select start date"
+                    required
+                    onChange={handleInputChange}
+                  />
+                </FieldBox>
 
-              <FieldBox>
-                <FieldLabel text="To Date" required />
-                <TextInput
-                  name="toDate"
-                  value={formData.toDate}
-                  type="date"
-                  placeholder="Select end date"
-                  required
-                />
-              </FieldBox>
-            </div>
+                <FieldBox>
+                  <FieldLabel text="To Date" required />
+                  <TextInput
+                    name="toDate"
+                    value={formData.toDate}
+                    type="date"
+                    placeholder="Select end date"
+                    required
+                    onChange={handleInputChange}
+                  />
+                </FieldBox>
+              </div>
+            )}
           </div>
 
           {/* Submit Buttons */}
@@ -231,13 +325,46 @@ const AddVisitorQuickForm: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
+              disabled={loading}
+              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Visitor
+              {loading ? "Adding..." : "Add Visitor"}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="mb-4">
+                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Success!
+              </h3>
+              
+              <p className="text-gray-600 mb-6">
+                {success}
+              </p>
+              
+              <button
+                onClick={handleSuccessModalClose}
+                className="w-full bg-[#30B33D] text-white py-2 px-4 rounded-lg hover:bg-[#28a035] transition"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

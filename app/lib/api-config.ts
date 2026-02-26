@@ -39,12 +39,11 @@ export const API_ENDPOINTS = {
   },
   // Visitors
   VISITORS: {
-    LIST: '/api/smartdha/visitor/get-all-visitors',
-    CREATE: '/api/smartdha/visitor/add-visitor',
-    QUICK_ADD: '/api/smartdha/visitor/quick-add',
-    UPDATE: '/api/smartdha/visitor/update-visitor',
-    DELETE: '/api/smartdha/visitor/delete',
-    GET_BY_ID: (id: string) => `/api/smartdha/visitor/${id}`,
+    LIST: '/api/smartdha/visitorpass/get-all-visitors',
+    CREATE: '/api/smartdha/visitorpass/add-visitorpass',
+    UPDATE: '/api/smartdha/visitorpass/update-visitorpass',
+    DELETE: '/api/smartdha/visitorpass/delete',
+    GET_BY_ID: (id: string) => `/api/smartdha/visitorpass/${id}`,
   },
   // Workers
   WORKERS: {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   FiChevronLeft,
@@ -7,25 +7,21 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import SvgIcon from "../shared/SvgIcon";
+import { visitorService } from "../../services/visitor-service";
+import type { VisitorPass } from "../../types/api";
 
 /* ================= TYPES ================= */
 
-type PreviousVisitorsType = {
-  id: number;
+type VisitorType = {
+  id: string;
   name: string;
-  vehicleInfo: string;
-  visitDetail: string;
-  validity: string;
   cnic: string;
-};
-
-type UpcomingVisitorsType = {
-  id: number;
-  name: string;
-  vehicleInfo: string;
-  visitDetail: string;
-  validity: string;
-  cnic: string;
+  vehicleInfo?: string;
+  visitDetail?: string;
+  validity?: string;
+  isActive: boolean;
+  validFrom?: string;
+  validTo?: string;
 };
 
 /* ================= COMPONENT ================= */
@@ -38,53 +34,107 @@ const Visitor = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [visitors, setVisitors] = useState<VisitorPass[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<VisitorPass | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
-  /* ================= LARGE DUMMY DATA ================= */
+  // Load visitors from API
+  const loadVisitors = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await visitorService.getAllVisitors({ id: "8374841e-ab5b-454e-8294-e7a484237c96" });
+      console.log(response);
+      if (response.success) {
+        // Combine both arrays for display
+        const allVisitors = [...(response.upcomingVisitors || []), ...(response.previousVisitors || [])];
+        setVisitors(allVisitors);
+      } else {
+        setError(response.message || "Failed to load visitors");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const dummyPreviousVisitors: PreviousVisitorsType[] = Array.from(
-    { length: 45 },
-    (_, i) => ({
-      id: i + 1,
-      name: `Previous Visitor ${i + 1}`,
-      vehicleInfo: i % 2 === 0 ? "Honda Civic ABC-123" : "Toyota Corolla XYZ-789",
-      visitDetail: i % 3 === 0 ? "Meeting with CEO" : i % 3 === 1 ? "Delivery" : "Maintenance",
-      validity: `${(i % 28) + 1}-${(i % 12) + 1}-2024`,
-      cnic: `35201-12345${i.toString().padStart(2, "0")}-1`,
-    })
-  );
+  useEffect(() => {
+    loadVisitors();
+  }, []);
 
-  const dummyUpcomingVisitors: UpcomingVisitorsType[] = Array.from(
-    { length: 32 },
-    (_, i) => ({
-      id: i + 1,
-      name: `Upcoming Visitor ${i + 1}`,
-      vehicleInfo: i % 2 === 0 ? "Suzuki Mehran DEF-456" : "Honda CD70 GHI-012",
-      visitDetail: i % 3 === 0 ? "Interview" : i % 3 === 1 ? "Site Visit" : "Contract Signing",
-      validity: `${(i % 28) + 1}-${(i % 12) + 1}-2024`,
-      cnic: `42101-76543${i.toString().padStart(2, "0")}-1`,
-    })
-  );
+  // Handle tab change with API refresh
+  const handleTabChange = (tab: "Upcoming Visitors" | "Previous Visitors") => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+    // Reload visitors when switching tabs
+    loadVisitors();
+  };
 
-  /* ================= PAGINATION ================= */
+  // Filter visitors based on active tab
+  const filteredVisitors = visitors.filter(visitor => {
+    const now = new Date();
+    const validFrom = visitor.validFrom ? new Date(visitor.validFrom) : null;
+    const validTo = visitor.validTo ? new Date(visitor.validTo) : null;
+    
+    if (activeTab === "Upcoming Visitors") {
+      return validFrom && validFrom >= now;
+    } else {
+      return validTo && validTo < now;
+    }
+  });
 
-  const activeData =
-    activeTab === "Previous Visitors"
-      ? dummyPreviousVisitors
-      : dummyUpcomingVisitors;
-
-  const totalPages = Math.ceil(
-    activeData.length / rowsPerPage
-  );
-
-  const startIndex =
-    (currentPage - 1) * rowsPerPage;
-
+  // Pagination
+  const totalPages = Math.ceil(filteredVisitors.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
+  const paginatedData = filteredVisitors.slice(startIndex, endIndex);
 
-  const paginatedData = activeData.slice(
-    startIndex,
-    endIndex
-  );
+  // Handle edit
+  const handleEdit = (item: VisitorPass) => {
+    localStorage.setItem('editVisitorData', JSON.stringify({ id: item.id }));
+    router.push('/visitor/add-visitor');
+  };
+
+  // Handle delete
+  const handleDelete = (item: VisitorPass) => {
+    setItemToDelete(item);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (itemToDelete) {
+      try {
+        const response = await visitorService.deleteVisitor({ id: itemToDelete.id });
+        if (response.success) {
+          setSuccessMessage("Visitor deleted successfully!");
+          setShowSuccessModal(true);
+          loadVisitors();
+        } else {
+          setError("Failed to delete visitor");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to delete visitor");
+      } finally {
+        setShowDeleteModal(false);
+        setItemToDelete(null);
+      }
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setItemToDelete(null);
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+  };
 
   /* ================= ROW COLOR ================= */
 
@@ -112,10 +162,7 @@ const Visitor = () => {
       {/* ================= TABS ================= */}
       <div className="flex w-full border-b-2 border-gray-200">
         <button
-          onClick={() => {
-            setActiveTab("Upcoming Visitors");
-            setCurrentPage(1);
-          }}
+          onClick={() => handleTabChange("Upcoming Visitors")}
           className={`flex-1 py-2.5 font-semibold rounded-tr-none rounded-tl-xl ${
             activeTab === "Upcoming Visitors"
               ? "bg-white text-[#30B33D] shadow-[0_-2px_8px_rgba(0,0,0,0.08)]"
@@ -126,10 +173,7 @@ const Visitor = () => {
         </button>
 
         <button
-          onClick={() => {
-            setActiveTab("Previous Visitors");
-            setCurrentPage(1);
-          }}
+          onClick={() => handleTabChange("Previous Visitors")}
           className={`flex-1 py-2.5 font-semibold rounded-tr-xl rounded-tl-none ${
             activeTab === "Previous Visitors"
               ? "bg-white text-[#30B33D] shadow-[0_-2px_8px_rgba(0,0,0,0.08)]"
@@ -151,7 +195,7 @@ const Visitor = () => {
                 : "Upcoming Visitors List"}
             </h2>
             <p className="text-xs text-gray-500">
-              {activeData.length} total records
+              {filteredVisitors.length} total records
             </p>
           </div>
 
@@ -198,18 +242,20 @@ const Visitor = () => {
                     {item.name}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {item.vehicleInfo}
+                    {item.vehicleLicensePlate || item.vehicleLicenseNo ? `${item.vehicleLicensePlate || ''} ${item.vehicleLicenseNo || ''}` : "-"}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {item.visitDetail}
+                    {item.visitorPassType || "-"}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {item.validity}
+                    {item.validFrom && item.validTo 
+                      ? `${item.validFrom} to ${item.validTo}`
+                      : "-"
+                    }
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {item.cnic}
                   </td>
-
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-3">
                       <button className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200">
@@ -230,8 +276,8 @@ const Visitor = () => {
         <div className="px-4 py-3 border-t flex justify-between items-center">
           <div className="text-xs text-gray-600">
             Showing {startIndex + 1} to{" "}
-            {Math.min(endIndex, activeData.length)} of{" "}
-            {activeData.length}
+            {Math.min(endIndex, filteredVisitors.length)} of{" "}
+            {filteredVisitors.length}
           </div>
 
           <div className="flex items-center gap-2">

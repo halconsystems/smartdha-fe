@@ -82,11 +82,8 @@ export enum WorkerCardDeliveryType {
 }
 
 export enum VisitorPassType {
-  DAILY = 1,
-  WEEKLY = 2,
-  MONTHLY = 3,
-  QUARTERLY = 4,
-  YEARLY = 5,
+  DAY_PASS = 1,
+  LONG_STAY = 2
 }
 
 // ─── Authentication Types ───────────────────────────────────────────────────
@@ -94,8 +91,6 @@ export enum VisitorPassType {
 export interface LoginRequest {
   cnic: string;
   password: string;
-  fcmToken: string;
-  deviceId: string;
 }
 
 export interface LoginResponse {
@@ -122,7 +117,7 @@ export interface CreateLuggagePassCommand {
   vehicleLicensePlate?: string;
   vehicleLicenseNo?: number;
   description?: string;
-  validityDate?: string; // Your actual form field name
+  validityDate?: string; 
 }
 
 export interface UpdateLuggagePassCommand {
