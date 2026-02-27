@@ -10,6 +10,7 @@ interface ApiResponse<T = any> {
 
 // Vehicle data structure from your API
 interface VehicleData {
+  id: string;
   licenseNo: number;
   license: string;
   year: string;
@@ -19,6 +20,9 @@ interface VehicleData {
   eTagId: string | null;
   validTo: string | null;
   validFrom: string | null;
+  owner: string;
+  status: boolean;
+  modifiedDate: string;
 }
 
 // Create response type for vehicle creation
@@ -55,7 +59,7 @@ export class VehicleService {
   }
 
   // Delete vehicle
-  async deleteVehicle(data: { licenseNo: number }): Promise<ApiResponse<void>> {
+  async deleteVehicle(data: { id: number }): Promise<ApiResponse<void>> {
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VEHICLES.DELETE}`, {
       method: 'POST',
       headers: {

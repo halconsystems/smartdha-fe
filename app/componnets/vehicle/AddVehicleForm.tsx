@@ -122,12 +122,13 @@ export default function AddVehicleForm({
     try {
       setLoading(true);
       const response = await vehicleService.getVehicleById(id);
-      if ((response as any).succeeded) {
+      if ((response as any).success) {
         const vehicle = (response as any).data;
+        console.log("Loaded vehicle for editing:", vehicle);
         setForm({
-          vehicleNoABC: vehicle.licenseNo?.toString().split('-')[0] || '',
-          vehicleNoNum: vehicle.licenseNo?.toString().split('-')[1] || '',
-          licensePlate: vehicle.licensePlate || '',
+          vehicleNoABC: vehicle.license || '',
+          vehicleNoNum: vehicle.licenseNo?.toString() || '',
+          licensePlate: `${vehicle.license || ''}-${vehicle.licenseNo || ''}`, // For display only
           make: vehicle.make || '',
           model: vehicle.model || '',
           year: vehicle.year || '2001',
@@ -183,7 +184,7 @@ export default function AddVehicleForm({
 
         const response = await vehicleService.updateVehicle(formData);
         
-        if ((response as any).succeeded) {
+        if ((response as any).success) {
           setSuccessMessage((response as any).message || "Vehicle updated successfully!");
           setShowSuccessModal(true);
         } else {
@@ -268,13 +269,14 @@ export default function AddVehicleForm({
               </FieldBox>
             </div>
 
-            {/* License Plate */}
+            {/* License Plate Display */}
             <FieldBox>
               <FieldLabel label="License Plate" />
               <TextInput
                 placeholder="ABC-123"
                 value={form.licensePlate}
-                onChange={(v) => set("licensePlate", v)}
+                readOnly
+                className="bg-gray-50 cursor-not-allowed"
               />
             </FieldBox>
           </div>

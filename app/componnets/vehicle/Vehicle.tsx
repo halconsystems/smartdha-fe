@@ -11,6 +11,7 @@ import WarningModal from "../shared/WarningModal";
 import SuccessModal from "../shared/SuccessModal";
 import { vehicleService } from "../../services/vehicle-service";
 import type { Vehicle } from "../../types/api";
+import { useAuth } from "../../hooks/useAuth";
 
 /* ================= TYPES ================= */
 
@@ -30,6 +31,7 @@ type ResidentType = {
 
 const Vehicle = () => {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -46,10 +48,35 @@ const Vehicle = () => {
       setLoading(true);
       setError(null);
       
-      const response = await vehicleService.getAllVehicles({ id: "8374841e-ab5b-454e-8294-e7a484237c96" });
+      // Get logged-in user ID from useAuth hook
+      const userId = user?.id || "8374841e-ab5b-454e-8294-e7a484237c96"; // Fallback to default if no user found
+      
+      const response = await vehicleService.getAllVehicles({ id: userId });
       console.log(response);
       if (response.success) {
-        setVehicles(response.data || []);
+        const fetched = response.data || [];
+        const mapped: Vehicle[] = (fetched as any[]).map((d: any) => ({
+          id: d.id ?? d.vehicleId ?? "",
+          licenseNo: Number(d.licenseNo ?? d.license_no ?? 0),
+          license: d.license ?? "",
+          eTagId: d.eTagId ?? d.eTag ?? d.etagId ?? null,
+          ownership: d.owner ?? "Unknown",
+          make: d.make ?? "",
+          model: d.model ?? "",
+          year: d.year ?? "",
+          color: d.color ?? "",
+          validFrom: d.validFrom ?? null,
+          validTo: d.validTo ?? null,
+          modifiedDate: d.modifiedDate ?? "",
+          isActive:
+            typeof d.status === "boolean"
+              ? d.status
+              : typeof d.status === "string"
+              ? d.status.toLowerCase() === "true"
+              : false,
+        }));
+
+        setVehicles(mapped);
       } else {
         setError(response.message || "Failed to load vehicles");
       }
@@ -85,8 +112,8 @@ const Vehicle = () => {
   const confirmDelete = async () => {
     if (itemToDelete) {
       try {
-        const response = await vehicleService.deleteVehicle({ licenseNo: itemToDelete.licenseNo });
-        if ((response as any).succeeded) {
+        const response = await vehicleService.deleteVehicle({ id: itemToDelete.id });
+        if ((response as any).success) {
           setSuccessMessage((response as any).data?.message || "Vehicle deleted successfully!");
           setShowSuccessModal(true);
           loadVehicles();
