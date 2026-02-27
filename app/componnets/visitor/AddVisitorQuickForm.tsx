@@ -46,6 +46,7 @@ const TextInput = ({
   required = false,
   maxLength,
   pattern,
+  readOnly = false,
   onChange,
 }: {
   name: keyof FormData;
@@ -55,6 +56,7 @@ const TextInput = ({
   required?: boolean;
   maxLength?: number;
   pattern?: string;
+  readOnly?: boolean;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
 }) => (
   <input
@@ -66,7 +68,9 @@ const TextInput = ({
     required={required}
     maxLength={maxLength}
     pattern={pattern}
+    readOnly={readOnly}
     className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
+    style={readOnly ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : {}}
   />
 );
 
@@ -91,7 +95,17 @@ const AddVisitorQuickForm: React.FC = () => {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    setFormData((prev) => {
+      const updated = { ...prev, [name]: value };
+      
+      // Auto-update license plate when vehicle number fields change
+      if (name === 'vehicleNoAlpha' || name === 'vehicleNoNumeric') {
+        updated.licensePlate = `${updated.vehicleNoAlpha}-${updated.vehicleNoNumeric}`;
+      }
+      
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
@@ -210,12 +224,13 @@ const AddVisitorQuickForm: React.FC = () => {
             </div>
             <div >
               <FieldBox>
-                <FieldLabel text="License Plate" />
+                <FieldLabel text="License Plate (Auto-generated)" />
                 <TextInput
                   name="licensePlate"
                   value={formData.licensePlate}
                   placeholder="ABC-123"
                   onChange={handleInputChange}
+                  readOnly
                 />
               </FieldBox>
               <div></div> {/* Empty div for alignment */}

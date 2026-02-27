@@ -9,6 +9,7 @@ import {
 import SvgIcon from "../shared/SvgIcon";
 import { visitorService } from "../../services/visitor-service";
 import type { VisitorPass } from "../../types/api";
+import { useAuth } from "../../hooks/useAuth";
 
 /* ================= TYPES ================= */
 
@@ -28,6 +29,7 @@ type VisitorType = {
 
 const Visitor = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<
     "Upcoming Visitors" | "Previous Visitors"
   >("Upcoming Visitors");
@@ -48,7 +50,10 @@ const Visitor = () => {
       setLoading(true);
       setError(null);
       
-      const response = await visitorService.getAllVisitors({ id: "8374841e-ab5b-454e-8294-e7a484237c96" });
+      // Get logged-in user ID from useAuth hook
+      const userId = user?.id;
+      
+      const response = await visitorService.getAllVisitors({ id: userId });
       console.log(response);
       if (response.success) {
         // Combine both arrays for display
@@ -111,7 +116,7 @@ const Visitor = () => {
     if (itemToDelete) {
       try {
         const response = await visitorService.deleteVisitor({ id: itemToDelete.id });
-        if (response.success) {
+        if (response.succeeded) {
           setSuccessMessage("Visitor deleted successfully!");
           setShowSuccessModal(true);
           loadVisitors();
