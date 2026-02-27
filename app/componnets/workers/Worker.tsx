@@ -1,5 +1,5 @@
 import { useRouter } from "next/navigation";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FiChevronLeft,
   FiChevronRight,
@@ -7,7 +7,9 @@ import {
   FiTrash2,
 } from "react-icons/fi";
 import SvgIcon from "../shared/SvgIcon";
-// import AddWorkerForm from "./AddWorkerForm";
+import { workerService } from "../../services/worker-service";
+import { useAuth } from "../../hooks/useAuth";
+import { JobType, WorkerCardDeliveryType } from "../../types/api";
 
 /* ================= TYPES ================= */
 
@@ -26,33 +28,100 @@ type WorkerType = {
 /* ================= COMPONENT ================= */
 
 const Worker = () => {
+  const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [workers, setWorkers] = useState<WorkerType[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const router = useRouter();
+  // Handle edit
+  const handleEdit = (item: any) => {
+    localStorage.setItem('editWorkerData', JSON.stringify({ id: item.id }));
+    router.push('/worker/add-worker');
+  };
 
-  /* ================= LARGE DUMMY DATA ================= */
+  // Load workers from API
+  const loadWorkers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get logged-in user ID from useAuth hook
+      const userId = user?.id;
+      
+      const response = await workerService.getAllWorkers({ id: userId });
+      if (response.success) {
+        const fetched = response.data || [];
+        console.log("fetched: " + fetched);
+        // Map API response to display format
+        const mapped = fetched.map((worker: any) => ({
+          id: worker.id || Math.random().toString(), // Add ID for React key
+          name: worker.name || "",
+          jobType: getJobTypeLabel(worker.jobType),
+          phone: worker.phoneNo || "",
+          dob: formatDate(worker.dob),
+          cnic: worker.cnic || "",
+          workerCardNo: worker.workerCardNo || "N/A",
+          policeVerification: worker.policeVerification ? "Yes" : "No",
+          cardDelivery: getCardDeliveryLabel(worker.workerCardDeliveryType),
+          isActive: worker.isActive,
+        }));
+        setWorkers(mapped);
+      } else {
+        setError(response.message || "Failed to load workers");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const dummyWorkers: WorkerType[] = Array.from(
-    { length: 45 },
-    (_, i) => ({
-      id: i + 1,
-      name: `Worker ${i + 1}`,
-      jobType: i % 3 === 0 ? "House Helper" : i % 3 === 1 ? "Driver" : "Security Guard",
-      phone: `0300-123${(100 + i).toString().padStart(3, "0")}`,
-      dob: `${15 + (i % 20)}/${(i % 12) + 1}/${1980 + (i % 25)}`,
-      cnic: `35201-12345${i.toString().padStart(3, "0")}-${(i % 9) + 1}`,
-      workerCardNo: `WRK-92786453000${i.toString().padStart(3, "0")}`,
-      policeVerification: i % 2 === 0 ? "Yes" : "No",
-      cardDelivery: i % 3 === 0 ? "Delivered" : i % 3 === 1 ? "Pending" : "Not Required",
-    })
-  );
+  // Helper functions for field mapping
+  const getJobTypeLabel = (jobType: number): string => {
+    const jobTypeMap: { [key: number]: string } = {
+      0: "Driver",        // API 0-based
+      1: "Cook",          // API 0-based
+      2: "Guard",         // API 0-based
+      3: "Peon",          // API 0-based
+      4: "Gardener",      // API 0-based
+    };
+    return jobTypeMap[jobType] || "Unknown";
+  };
+
+  const getCardDeliveryLabel = (deliveryType: number): string => {
+    const deliveryTypeMap: { [key: number]: string } = {
+      0: "OwnerOrEmployeerAddress",  // API 0-based
+      1: "SelfPickUp",               // API 0-based
+    };
+    return deliveryTypeMap[deliveryType] || "Unknown";
+  };
+
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return "";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return dateString;
+    }
+  };
+
+  useEffect(() => {
+    loadWorkers();
+  }, []);
 
   /* ================= PAGINATION ================= */
 
   const totalPages = Math.ceil(
-    dummyWorkers.length / rowsPerPage
+    workers.length / rowsPerPage
   );
 
   const startIndex =
@@ -60,10 +129,11 @@ const Worker = () => {
 
   const endIndex = startIndex + rowsPerPage;
 
-  const paginatedData = dummyWorkers.slice(
+  const paginatedData = workers.slice(
     startIndex,
     endIndex
   );
+
   /* ================= ROW COLOR ================= */
 
   const rowStyle = (index: number) =>
@@ -104,7 +174,7 @@ const Worker = () => {
               Worker Records
             </h2>
             <p className="text-xs text-gray-500">
-              {dummyWorkers.length} total records
+              {workers.length} total records
             </p>
           </div>
 
@@ -178,7 +248,10 @@ const Worker = () => {
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-3">
-                      <button className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200">
+                      <button 
+                        onClick={() => handleEdit(item)}
+                        className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200"
+                      >
                         <SvgIcon name="Edit-Icon" size={16} />
                       </button>
                       <button className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200">
@@ -197,8 +270,8 @@ const Worker = () => {
         <div className="px-4 py-3 border-t flex justify-between items-center">
           <div className="text-xs text-gray-600">
             Showing {startIndex + 1} to{" "}
-            {Math.min(endIndex, dummyWorkers.length)} of{" "}
-            {dummyWorkers.length}
+            {Math.min(endIndex, workers.length)} of{" "}
+            {workers.length}
           </div>
 
           <div className="flex items-center gap-2">

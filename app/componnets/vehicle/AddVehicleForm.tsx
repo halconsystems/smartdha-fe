@@ -38,10 +38,12 @@ function FieldLabel({ label, required }: { label: string; required?: boolean }) 
 function TextInput({
   placeholder,
   value,
+  readOnly,
   onChange,
 }: {
   placeholder: string;
   value: string;
+  readOnly?: boolean;
   onChange: (v: string) => void;
 }) {
   return (
@@ -50,6 +52,7 @@ function TextInput({
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      readOnly={readOnly}
       className="
         w-full text-[13px] text-gray-700 placeholder-gray-300
         bg-transparent border-0 outline-none
@@ -275,8 +278,8 @@ export default function AddVehicleForm({
               <TextInput
                 placeholder="ABC-123"
                 value={form.licensePlate}
-                readOnly
-                className="bg-gray-50 cursor-not-allowed"
+                readOnly={true}
+                onChange={(v) => set("licensePlate", v)}
               />
             </FieldBox>
           </div>

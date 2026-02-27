@@ -59,7 +59,7 @@ export class VehicleService {
   }
 
   // Delete vehicle
-  async deleteVehicle(data: { id: number }): Promise<ApiResponse<void>> {
+  async deleteVehicle(data: { id: string | null }): Promise<ApiResponse<void>> {
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VEHICLES.DELETE}`, {
       method: 'POST',
       headers: {

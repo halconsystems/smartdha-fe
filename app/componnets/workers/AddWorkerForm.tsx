@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { JobType, WorkerCardDeliveryType } from "../../types/api";
+import { workerService } from "../../services/worker-service";
 
 type FormData = {
   searchQuery: string;
@@ -20,7 +23,57 @@ type FormData = {
   cnicBack: File | null;
 };
 
+// Reusable field box
+const FieldBox = ({ children }: { children: React.ReactNode }) => (
+  <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 relative">
+    {children}
+  </div>
+);
+
+// Reusable label
+const FieldLabel = ({
+  text,
+  required = false,
+  green = true,
+}: {
+  text: string;
+  required?: boolean;
+  green?: boolean;
+}) => (
+  <label className={`block text-xs font-semibold mb-1.5 ${green ? "text-[#30B33D]" : "text-gray-700"}`}>
+    {text} {required && <span className="text-red-500">*</span>}
+  </label>
+);
+
+// Reusable input
+const TextInput = ({
+  name,
+  value,
+  placeholder,
+  type = "text",
+  required = false,
+  onChange,
+}: {
+  name: keyof FormData;
+  value: string;
+  placeholder: string;
+  type?: string;
+  required?: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => void;
+}) => (
+  <input
+    type={type}
+    name={name}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    required={required}
+    className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
+  />
+);
+
 const AddWorkerForm: React.FC = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState<FormData>({
     searchQuery: "",
     jobType: "",
@@ -39,6 +92,13 @@ const AddWorkerForm: React.FC = () => {
     cnicBack: null,
   });
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   const [policePreview, setPolicePreview] = useState<string | null>(null);
   const [cnicFrontPreview, setCnicFrontPreview] = useState<string | null>(null);
@@ -48,6 +108,58 @@ const AddWorkerForm: React.FC = () => {
   const [cardDeliveryDropdownOpen, setCardDeliveryDropdownOpen] = useState<boolean>(false);
   const [policeVerificationDropdownOpen, setPoliceVerificationDropdownOpen] = useState<boolean>(false);
   const [addressDropdownOpen, setAddressDropdownOpen] = useState<boolean>(false);
+
+  // Check if we're in edit mode
+  useEffect(() => {
+    const editData = localStorage.getItem('editWorkerData');
+    if (editData) {
+      try {
+        const { id } = JSON.parse(editData);
+        setEditingId(id);
+        setIsEditing(true);
+        loadWorkerData(id);
+      } catch (error) {
+        console.error('Error parsing edit data:', error);
+      }
+    }
+  }, []);
+
+  // Load worker data for editing
+  const loadWorkerData = async (id: string) => {
+    try {
+      setLoading(true);
+      const response = await workerService.getWorkerById(id);
+      if (response.success) {
+        const worker = response.data;
+        console.log("Loaded worker for editing:", worker);
+        
+        // Map API data to form format
+        setFormData({
+          searchQuery: "",
+          jobType: getJobTypeLabel(worker.jobType),
+          fullName: worker.name || "",
+          fatherHusbandName: "", // Not available in API
+          dob: worker.dob || "",
+          cellNumber: worker.phoneNo || "",
+          cnic: worker.cnic || "",
+          policeVerification: worker.policeVerification ? "Yes" : "No",
+          cardDelivery: getCardDeliveryLabel(worker.workerCardDeliveryType),
+          address: "", // Not available in API
+          status: worker.isActive ? "Active" : "Inactive",
+          profilePicture: null,
+          policeVerificationPicture: null,
+          cnicFront: null,
+          cnicBack: null,
+        });
+      } else {
+        setError(response.message || "Failed to load worker data");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load worker data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -85,14 +197,189 @@ const AddWorkerForm: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    console.log("Form Data:", formData);
-    // Handle form submission here
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Create FormData for API (supports file uploads)
+      const formDataToSend = new FormData();
+      
+      // Add all form fields
+      formDataToSend.append('name', formData.fullName);
+      formDataToSend.append('fatherHusbandName', formData.fatherHusbandName);
+      formDataToSend.append('cnic', formData.cnic);
+      formDataToSend.append('phoneNo', formData.cellNumber);
+      formDataToSend.append('dob', formData.dob);
+      formDataToSend.append('jobType', getJobTypeNumber(formData.jobType).toString());
+      formDataToSend.append('policeVerification', formData.policeVerification === "Yes" ? "true" : "false");
+      formDataToSend.append('workerCardDeliveryType', getCardDeliveryNumber(formData.cardDelivery).toString());
+      formDataToSend.append('isActive', formData.status === "Active" ? "true" : "false");
+      formDataToSend.append('address', formData.address);
+      
+      // Add files if they exist
+      if (formData.profilePicture) {
+        formDataToSend.append('profilePicture', formData.profilePicture);
+      }
+      if (formData.policeVerificationPicture) {
+        formDataToSend.append('policeVerificationPicture', formData.policeVerificationPicture);
+      }
+      if (formData.cnicFront) {
+        formDataToSend.append('cnicFront', formData.cnicFront);
+      }
+      if (formData.cnicBack) {
+        formDataToSend.append('cnicBack', formData.cnicBack);
+      }
+
+      const response = await workerService.createWorker(formDataToSend);
+      
+      if (response.success) {
+        setShowSuccessModal(true);
+        // Reset form
+        setFormData({
+          searchQuery: "",
+          jobType: "",
+          fullName: "",
+          fatherHusbandName: "",
+          dob: "",
+          cellNumber: "",
+          cnic: "",
+          policeVerification: "",
+          cardDelivery: "",
+          address: "",
+          status: "Active",
+          profilePicture: null,
+          policeVerificationPicture: null,
+          cnicFront: null,
+          cnicBack: null,
+        });
+        // Reset previews
+        setProfilePreview(null);
+        setPolicePreview(null);
+        setCnicFrontPreview(null);
+        setCnicBackPreview(null);
+      } else {
+        setError(response.message || "Failed to add worker");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const jobTypes: string[] = ["Driver", "Cook", "Guard", "Peon", "Gardener", "House Helper", "Security Guard", "Cleaner"];
-  const cardDeliveryOptions: string[] = ["Delivered", "Pending", "Not Required", "In Process"];
+  // Handle update
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Create FormData for API (supports file uploads)
+      const formDataToSend = new FormData();
+      
+      // Add worker ID for update
+      if (editingId) {
+        formDataToSend.append('id', editingId);
+      }
+      
+      // Add all form fields
+      formDataToSend.append('name', formData.fullName);
+      formDataToSend.append('fatherHusbandName', formData.fatherHusbandName);
+      formDataToSend.append('cnic', formData.cnic);
+      formDataToSend.append('phoneNo', formData.cellNumber);
+      formDataToSend.append('dob', formData.dob);
+      formDataToSend.append('jobType', getJobTypeNumber(formData.jobType).toString());
+      formDataToSend.append('policeVerification', formData.policeVerification === "Yes" ? "true" : "false");
+      formDataToSend.append('workerCardDeliveryType', getCardDeliveryNumber(formData.cardDelivery).toString());
+      formDataToSend.append('isActive', formData.status === "Active" ? "true" : "false");
+      formDataToSend.append('address', formData.address);
+      
+      // Add files if they exist
+      if (formData.profilePicture) {
+        formDataToSend.append('profilePicture', formData.profilePicture);
+      }
+      if (formData.policeVerificationPicture) {
+        formDataToSend.append('policeVerificationPicture', formData.policeVerificationPicture);
+      }
+      if (formData.cnicFront) {
+        formDataToSend.append('cnicFront', formData.cnicFront);
+      }
+      if (formData.cnicBack) {
+        formDataToSend.append('cnicBack', formData.cnicBack);
+      }
+
+      const response = await workerService.updateWorker(formDataToSend);
+      
+      if (response.success) {
+        setShowSuccessModal(true);
+      } else {
+        setError(response.message || "Failed to update worker");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper functions to convert API numbers to labels for form display
+  const getJobTypeLabel = (jobTypeNumber: number): string => {
+    const jobTypeMap: { [key: number]: string } = {
+      0: "Driver",
+      1: "Cook",
+      2: "Guard",
+      3: "Peon",
+      4: "Gardener",
+    };
+    return jobTypeMap[jobTypeNumber] || "";
+  };
+
+  const getCardDeliveryLabel = (deliveryTypeNumber: number): string => {
+    const deliveryTypeMap: { [key: number]: string } = {
+      0: "OwnerOrEmployeerAddress",
+      1: "SelfPickUp",
+    };
+    return deliveryTypeMap[deliveryTypeNumber] || "";
+  };
+
+  // Helper functions to convert string values back to numbers for API
+  const getJobTypeNumber = (jobTypeLabel: string): number => {
+    const jobTypeMap: { [key: string]: number } = {
+      "Driver": 0,
+      "Cook": 1,
+      "Guard": 2,
+      "Peon": 3,
+      "Gardener": 4,
+    };
+    return jobTypeMap[jobTypeLabel] ?? 0;
+  };
+
+  const getCardDeliveryNumber = (deliveryLabel: string): number => {
+    const deliveryTypeMap: { [key: string]: number } = {
+      "OwnerOrEmployeerAddress": 0,
+      "SelfPickUp": 1,
+    };
+    return deliveryTypeMap[deliveryLabel] ?? 0;
+  };
+
+  // Job types from enum (0-based indexing)
+  const jobTypes: { [key: number]: string } = {
+    0: "Driver",
+    1: "Cook",
+    2: "Guard",
+    3: "Peon",
+    4: "Gardener",
+  };
+  
+  // Card delivery options from enum (0-based indexing)
+  const cardDeliveryOptions: { [key: number]: string } = {
+    0: "OwnerOrEmployeerAddress",
+    1: "SelfPickUp",
+  };
   const policeVerificationOptions: string[] = ["Yes", "No"];
   const addressOptions: string[] = [
     "Main Gate", 
@@ -106,53 +393,6 @@ const AddWorkerForm: React.FC = () => {
     "Garden Area",
     "Other"
   ];
-
-  // Reusable field box
-  const FieldBox = ({ children }: { children: React.ReactNode }) => (
-    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 relative">
-      {children}
-    </div>
-  );
-
-  // Reusable label
-  const FieldLabel = ({
-    text,
-    required = false,
-    green = true,
-  }: {
-    text: string;
-    required?: boolean;
-    green?: boolean;
-  }) => (
-    <label className={`block text-xs font-semibold mb-1.5 ${green ? "text-[#30B33D]" : "text-gray-700"}`}>
-      {text} {required && <span className="text-red-500">*</span>}
-    </label>
-  );
-
-  // Reusable input
-  const TextInput = ({
-    name,
-    value,
-    placeholder,
-    type = "text",
-    required = false,
-  }: {
-    name: keyof FormData;
-    value: string;
-    placeholder: string;
-    type?: string;
-    required?: boolean;
-  }) => (
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={handleInputChange}
-      placeholder={placeholder}
-      required={required}
-      className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
-    />
-  );
 
   // Toggle Switch Component
   const ToggleSwitch = ({
@@ -185,6 +425,12 @@ const AddWorkerForm: React.FC = () => {
     </div>
   );
 
+  const handleModalClose = (): void => {
+    setShowSuccessModal(false);
+    localStorage.removeItem('editWorkerData');
+    router.push('/worker');
+  };
+
   return (
     <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
       <div className="w-full max-w-4xl mx-auto">
@@ -203,7 +449,14 @@ const AddWorkerForm: React.FC = () => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={isEditing ? handleUpdate : handleSubmit}>
+
+          {/* Error and Success Messages */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
 
           {/* Row 1: Search + Job Type */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -213,6 +466,7 @@ const AddWorkerForm: React.FC = () => {
                 name="searchQuery" 
                 value={formData.searchQuery} 
                 placeholder="MemberShip No. / CNIC / Reg. Cell No." 
+                onChange={handleInputChange}
               />
             </FieldBox>
 
@@ -231,9 +485,9 @@ const AddWorkerForm: React.FC = () => {
               </div>
               {jobTypeDropdownOpen && (
                 <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg z-10 mt-1 shadow-lg">
-                  {jobTypes.map((job) => (
+                  {Object.entries(jobTypes).map(([key, job]) => (
                     <div
-                      key={job}
+                      key={key}
                       className="px-4 py-2.5 text-sm text-gray-700 cursor-pointer hover:bg-green-50"
                       onClick={() => {
                         setFormData((p) => ({ ...p, jobType: job }));
@@ -252,12 +506,12 @@ const AddWorkerForm: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Full Name" required />
-              <TextInput name="fullName" value={formData.fullName} placeholder="Enter full name" required />
+              <TextInput name="fullName" value={formData.fullName} placeholder="Enter full name" required onChange={handleInputChange} />
             </FieldBox>
 
             <FieldBox>
               <FieldLabel text="Father / Husband Name" required />
-              <TextInput name="fatherHusbandName" value={formData.fatherHusbandName} placeholder="Enter father/husband name" required />
+              <TextInput name="fatherHusbandName" value={formData.fatherHusbandName} placeholder="Enter father/husband name" required onChange={handleInputChange} />
             </FieldBox>
           </div>
 
@@ -265,12 +519,12 @@ const AddWorkerForm: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Date of Birth (DOB)" required />
-              <TextInput name="dob" value={formData.dob} type="date" placeholder="Select date" required />
+              <TextInput name="dob" value={formData.dob} type="date" placeholder="Select date" required onChange={handleInputChange} />
             </FieldBox>
 
             <FieldBox>
               <FieldLabel text="Add Cell Number" required />
-              <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
+              <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required onChange={handleInputChange} />
             </FieldBox>
           </div>
 
@@ -278,7 +532,7 @@ const AddWorkerForm: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="CNIC / NICOP No." />
-              <TextInput name="cnic" value={formData.cnic} placeholder="12345-1234567-1" />
+              <TextInput name="cnic" value={formData.cnic} placeholder="12345-1234567-1" onChange={handleInputChange} />
             </FieldBox>
 
             <FieldBox>
@@ -330,9 +584,9 @@ const AddWorkerForm: React.FC = () => {
               </div>
               {cardDeliveryDropdownOpen && (
                 <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg z-10 mt-1 shadow-lg">
-                  {cardDeliveryOptions.map((option) => (
+                  {Object.entries(cardDeliveryOptions).map(([key, option]) => (
                     <div
-                      key={option}
+                      key={key}
                       className="px-4 py-2.5 text-sm text-gray-700 cursor-pointer hover:bg-green-50"
                       onClick={() => {
                         setFormData((p) => ({ ...p, cardDelivery: option }));
@@ -665,13 +919,44 @@ const AddWorkerForm: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
+              disabled={loading}
+              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Worker
+              {loading ? "Adding Worker..." : "Add Worker"}
             </button>
           </div>
         </form>
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {isEditing ? "Worker Updated Successfully!" : "Worker Added Successfully!"}
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                {isEditing 
+                  ? "The worker has been updated in the system successfully." 
+                  : "The worker has been added to the system successfully."
+                }
+              </p>
+              <button
+                onClick={handleModalClose}
+                className="w-full bg-[#30B33D] text-white py-2 px-4 rounded-lg hover:bg-[#28a035] transition"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

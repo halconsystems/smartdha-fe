@@ -67,18 +67,16 @@ export enum PropertyTypeResidential {
 }
 
 export enum JobType {
-  DRIVER = 1,
-  COOK = 2,
-  MAID = 3,
-  GUARD = 4,
-  GARDENER = 5,
-  OTHER = 6,
+    DRIVER = 1,
+    COOK = 2,
+    GUARD = 3,
+    PEON = 4,
+    GARDNER = 5,
 }
 
 export enum WorkerCardDeliveryType {
-  COLLECTED = 1,
-  DELIVERED = 2,
-  PENDING = 3,
+  OWNER_OR_EMPLOYER_ADDRESS = 1,
+  SELFPICKUP = 2,
 }
 
 export enum VisitorPassType {
