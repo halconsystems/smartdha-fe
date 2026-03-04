@@ -42,7 +42,7 @@ const Visitor = () => {
       setLoading(true);
       setError(null);
 
-      const response: any = await visitorService.getAllVisitorPasses(user?.id);
+      const response: any = await visitorService.getAllVisitorPasses();
       const succeeded = response?.succeeded ?? response?.success ?? false;
       const payload = response?.data ?? response;
       const upcoming =

@@ -10,7 +10,8 @@ import SvgIcon from "../shared/SvgIcon";
 import WarningModal from "../shared/WarningModal";
 import SuccessModal from "../shared/SuccessModal";
 import { luggageService } from "../../services/luggage-service";
-
+import type { LuggagePass } from "../../types/api";
+import { useAuth } from "../../hooks/useAuth";
 /* ================= TYPES ================= */
 
 type PreviousLuggageType = {
@@ -35,34 +36,45 @@ type UpcomingLuggageType = {
 
 const LuggagePass = () => {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "Upcoming Luggage" | "Previous Luggage"
-  >("Upcoming Luggage");
-
+  const [activeTab, setActiveTab] = useState<"Upcoming Luggage" | "Previous Luggage">("Upcoming Luggage");
+  const { user } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [upcomingLuggage, setUpcomingLuggage] = useState<any[]>([]);
-  const [previousLuggage, setPreviousLuggage] = useState<any[]>([]);
+  const [upcomingLuggage, setUpcomingLuggage] = useState<LuggagePass[]>([]);
+  const [previousLuggage, setPreviousLuggage] = useState<LuggagePass[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-
   // Load data from API
   const loadLuggagePasses = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const response = await luggageService.getAllLuggagePasses();
-      
-      if (response.success) {
-        setUpcomingLuggage(response.upcomingLuggage || []);
-        setPreviousLuggage(response.previousLuggage || []);
+
+      const response: any = await luggageService.getAllLuggagePasses();
+      const succeeded = response?.succeeded ?? response?.success ?? true;
+      const payload = response?.data ?? response;
+
+      const upcoming =
+        payload?.upcomingLuggage ??
+        payload?.upcoming ??
+        response?.upcomingLuggage ??
+        [];
+
+      const previous =
+        payload?.previousLuggage ??
+        payload?.previous ??
+        response?.previousLuggage ??
+        [];
+
+      if (succeeded) {
+        setUpcomingLuggage(upcoming || []);
+        setPreviousLuggage(previous || []);
       } else {
-        setError(response.message || "Failed to load luggage passes");
+        setError(response?.message || "Failed to load luggage passes");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -137,13 +149,19 @@ const LuggagePass = () => {
 
   /* ================= PAGINATION ================= */
 
+  const handleTabChange = (tab: "Upcoming Luggage" | "Previous Luggage") => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
+
   const activeData =
     activeTab === "Previous Luggage"
       ? previousLuggage
       : upcomingLuggage;
 
-  const totalPages = Math.ceil(
-    activeData.length / rowsPerPage
+  const totalPages = Math.max(
+    1,
+    Math.ceil(activeData.length / rowsPerPage)
   );
 
   const startIndex =
@@ -285,13 +303,17 @@ const LuggagePass = () => {
                     {item.name}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {item.vehicleInfo}
+                    {item.vehicleLicensePlate || item.vehicleLicenseNo
+                      ? `${item.vehicleLicensePlate || ""} ${item.vehicleLicenseNo || ""}`
+                      : "-"}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {item.visitDetail}
+                    {item.description || "-"}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    {formatDate(item.toDate)}
+                    {item.validFrom && item.validTo
+                      ? `${formatDate(item.validFrom)} to ${formatDate(item.validTo)}`
+                      : "-"}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {item.cnic}

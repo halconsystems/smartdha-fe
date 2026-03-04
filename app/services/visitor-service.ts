@@ -120,65 +120,8 @@ export class VisitorService {
     return response.json();
   }
 
-  // Get all visitors
-  // async getAllVisitorPasses(userId: string): Promise<ApiResponse<VisitorListResponse>> {
-  //   debugger;
-  //   const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.LIST}`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': `Bearer ${this.getAuthToken()}`
-  //     },
-  //     body: JSON.stringify({ id: userId })  // ✅ Send userId as "id"
-  //   });
-  
-  //   if (!response.ok) {
-  //     throw new Error(`API Error: ${response.status}`);
-  //   }
-  
-  //   return response.json();
-  // }
-
-  // async getAllVisitorPasses(userId: string): Promise<ApiResponse<VisitorPassListResponse>> {
-  //   debugger;
-  //   const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.LIST}`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'Content-Type': 'application/json',
-  //       'Authorization': `Bearer ${this.getAuthToken()}`
-  //     },
-  //     body: JSON.stringify({ id: userId })  // ✅ Send userId as "id"
-  //   });
-  
-  //   if (!response.ok) {
-  //     throw new Error(`API Error: ${response.status}`);
-  //   }
-  
-  //   return response.json();
-  // }
-  
-  // OR if you want to get current user's visitor passes automatically
-  // async getAllVisitorPasses(): Promise<ApiResponse<VisitorListResponse>> {
-  //   debugger;
-  //   //const userId = authService.getCurrentUser()?.id; // Get from token or state
-    
-  //   const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.LIST}`, {
-  //     method: 'POST',
-  //   //   headers: {
-  //   //     'Content-Type': 'application/json',
-  //   //     'Authorization': `Bearer ${this.getAuthToken()}`
-  //   //   },
-  //   //   body: JSON.stringify({ id: userId })
-  //   });
-  
-  //   if (!response.ok) {
-  //     throw new Error(`API Error: ${response.status}`);
-  //   }
-  
-  //   return response.json();
-  // }
-
-  async getAllVisitorPasses(userId?: string): Promise<ApiResponse<VisitorPassesResponse>> {
+  async getAllVisitorPasses(): Promise<ApiResponse<VisitorPassesResponse>> {
+    debugger;
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.LIST}`, {
       method: 'POST',
       headers: {
@@ -186,7 +129,7 @@ export class VisitorService {
         'accept': '*/*',
         'Authorization': `Bearer ${this.getAuthToken()}`,
       },
-      body: userId ? JSON.stringify({ id: userId }) : undefined,
+      //body: userId ? JSON.stringify({ id: userId }) : undefined,
     });
 
     if (!response.ok) {

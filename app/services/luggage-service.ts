@@ -1,4 +1,5 @@
 import { apiClient } from '../lib/api-client';
+import { API_CONFIG, API_ENDPOINTS } from '../lib/api-config';
 import { 
   CreateLuggagePassCommand, 
   UpdateLuggagePassCommand, 
@@ -21,7 +22,10 @@ interface CreateLuggageResponse {
   data?: any;
   errors?: any;
 }
-
+export interface LuggagePassesResponse {
+  upcoming: LuggagePass[];
+  previous: LuggagePass[];
+}
 // Luggage Pass API Service
 export class LuggageService {
   private readonly baseUrl = '/api/smartdha/luggagepass';
@@ -62,11 +66,29 @@ export class LuggageService {
   }
 
   // Get all luggage passes (upcoming and previous)
-  async getAllLuggagePasses(): Promise<ApiResponse<{
-    upcomingLuggage: LuggagePass[];
-    previousLuggage: LuggagePass[];
-  }>> {
-    return apiClient.post(`${this.baseUrl}/getall`, {});
+  async getAllLuggagePasses(): Promise<ApiResponse<LuggagePassesResponse>> {
+    const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.LUGGAGE.LIST}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'accept': '*/*',
+        'Authorization': `Bearer ${this.getAuthToken()}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('API Error:', response.status, error);
+      throw new Error(`API Error: ${response.status}`);
+    }
+
+    return response.json();
+  }
+  private getAuthToken(): string | null {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('accessToken');
+    }
+    return null;
   }
 }
 
