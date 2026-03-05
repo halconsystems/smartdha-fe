@@ -323,11 +323,23 @@ export interface GetVehicleListQuery {
 
 // ─── Common API Response Types ───────────────────────────────────────────
 
+
+// Generic API response
 export interface ApiResponse<T = any> {
   data: T;
   message?: string;
   success: boolean;
   errors?: string[];
+}
+
+// Paginated vehicle response
+export interface VehicleListApiData {
+  items: Vehicle[];
+  pageNumber: number;
+  totalPages: number;
+  totalCount: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }
 
 export interface PaginatedResponse<T> {

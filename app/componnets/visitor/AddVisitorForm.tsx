@@ -15,7 +15,12 @@ type FormData = {
   licensePlate: string;
 };
 
-const AddVisitorForm: React.FC = () => {
+interface AddVisitorFormProps {
+  mode?: string;
+  visitorId?: string;
+}
+
+const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState<boolean>(false);
   const [subCategoryDropdownOpen, setSubCategoryDropdownOpen] = useState<boolean>(false);
 
@@ -94,6 +99,7 @@ const AddVisitorForm: React.FC = () => {
     <input
       type={type}
       name={name}
+      id={name}
       value={value}
       onChange={handleInputChange}
       placeholder={placeholder}

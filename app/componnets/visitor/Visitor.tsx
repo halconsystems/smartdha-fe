@@ -10,6 +10,7 @@ import SvgIcon from "../shared/SvgIcon";
 import { visitorService } from "../../services/visitor-service";
 import type { VisitorPass } from "../../types/api";
 import { useAuth } from "../../hooks/useAuth";
+import WarningModal from "../shared/WarningModal";
 
 /* ================= TYPES ================= */
 
@@ -105,14 +106,13 @@ const Visitor = () => {
           setSuccessMessage("Visitor deleted successfully!");
           setShowSuccessModal(true);
           loadVisitors();
+          setShowDeleteModal(false);
+          setItemToDelete(null);
         } else {
-          setError("Failed to delete visitor");
+          setError(response?.message || JSON.stringify(response) || "Failed to delete visitor");
         }
-       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete visitor");
-      } finally {
-        setShowDeleteModal(false);
-        setItemToDelete(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : JSON.stringify(err));
       }
     }
   };
@@ -137,6 +137,16 @@ const Visitor = () => {
 
   return (
     <div className="w-full">
+      {/* Delete Confirmation Modal */}
+      <WarningModal
+        isOpen={showDeleteModal}
+        onClose={cancelDelete}
+        onConfirm={confirmDelete}
+        title="Delete Visitor"
+        message={error ? `Error: ${error}` : `Are you sure you want to delete this visitor? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
       <div className="flex justify-end mb-6">
         <button
           onClick={() => router.push("/visitor/add-visitor-quick")}

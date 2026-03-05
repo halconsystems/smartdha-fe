@@ -30,6 +30,7 @@ type ResidentType = {
 /* ================= COMPONENT ================= */
 
 const Vehicle = () => {
+    const [apiResponse, setApiResponse] = useState<any>(null);
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
@@ -48,14 +49,13 @@ const Vehicle = () => {
       setLoading(true);
       setError(null);
       
-      // Get logged-in user ID from useAuth hook
-      const userId = user?.id || "8374841e-ab5b-454e-8294-e7a484237c96"; // Fallback to default if no user found
-      
-      const response = await vehicleService.getAllVehicles({ id: userId });
-      console.log(response);
+      // Fetch all vehicles without filtering by userId for debugging
+      const response = await vehicleService.getAllVehicles({});
+      // setApiResponse(response); // Remove API response debug output
       if (response.success) {
-        const fetched = response.data || [];
-        const mapped: Vehicle[] = (fetched as any[]).map((d: any) => ({
+        // Ensure fetched is always an array (fix for paged API response)
+        const fetched = Array.isArray(response.data?.items) ? response.data.items : [];
+        const mapped: Vehicle[] = fetched.map((d: any) => ({
           id: d.id ?? d.vehicleId ?? "",
           licenseNo: Number(d.licenseNo ?? d.license_no ?? 0),
           license: d.license ?? "",
@@ -75,7 +75,6 @@ const Vehicle = () => {
               ? d.status.toLowerCase() === "true"
               : false,
         }));
-
         setVehicles(mapped);
       } else {
         setError(response.message || "Failed to load vehicles");
@@ -166,6 +165,10 @@ const Vehicle = () => {
           Add New
         </button>
       </div>
+
+
+      {/* ================= API RESPONSE DEBUG ================= */}
+      {/* API Response debug output removed */}
 
       {/* ================= TABLE ================= */}
 

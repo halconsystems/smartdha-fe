@@ -97,15 +97,27 @@ export class VisitorService {
   }
 
   // Delete visitor
-  async deleteVisitor(data: { id: string }): Promise<ApiResponse<void>> {
-    const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.DELETE}`, {
+  async deleteVisitor(data: { id: string, Name?: string, Description?: string }): Promise<ApiResponse<void>> {
+    // id as query param only, no body
+    const params = new URLSearchParams({ id: data.id });
+    const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.DELETE}?${params.toString()}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${this.getAuthToken()}`
-      },
-      body: JSON.stringify(data)
+      }
     });
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('API Error:', response.status, error);
+      try {
+        const json = JSON.parse(error);
+        console.error('API Error JSON:', json);
+      } catch (e) {
+        // Not JSON, just log raw error
+      }
+      throw new Error(`API Error: ${response.status}`);
+    }
     return response.json();
   }
 
@@ -121,7 +133,6 @@ export class VisitorService {
   }
 
   async getAllVisitorPasses(): Promise<ApiResponse<VisitorPassesResponse>> {
-    debugger;
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.LIST}`, {
       method: 'POST',
       headers: {
@@ -129,7 +140,7 @@ export class VisitorService {
         'accept': '*/*',
         'Authorization': `Bearer ${this.getAuthToken()}`,
       },
-      //body: userId ? JSON.stringify({ id: userId }) : undefined,
+      body: JSON.stringify({}) // Send empty object to avoid null request error
     });
 
     if (!response.ok) {

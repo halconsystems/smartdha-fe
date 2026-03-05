@@ -36,6 +36,7 @@ const Worker = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workers, setWorkers] = useState<WorkerType[]>([]);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -57,9 +58,9 @@ const Worker = () => {
       const userId = user?.id;
       
       const response = await workerService.getAllWorkers({ id: userId });
+      // setApiResponse(response); // Debug output removed
       if (response.success) {
-        const fetched = response.data || [];
-        console.log("fetched: " + fetched);
+        const fetched = Array.isArray(response.data?.items) ? response.data.items : [];
         // Map API response to display format
         const mapped = fetched.map((worker: any) => ({
           id: worker.id || Math.random().toString(), // Add ID for React key
@@ -150,6 +151,8 @@ const Worker = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       /> */}
+
+
 
 
       <div className="flex justify-end mb-6">

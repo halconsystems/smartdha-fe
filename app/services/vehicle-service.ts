@@ -1,29 +1,6 @@
+
 import { API_CONFIG, API_ENDPOINTS } from '../lib/api-config';
-
-// API Response type matching your backend
-interface ApiResponse<T = any> {
-  data: T;
-  message: string;
-  success: boolean;
-  errors: string[];
-}
-
-// Vehicle data structure from your API
-interface VehicleData {
-  id: string;
-  licenseNo: number;
-  license: string;
-  year: string;
-  color: string;
-  make: string;
-  model: string;
-  eTagId: string | null;
-  validTo: string | null;
-  validFrom: string | null;
-  owner: string;
-  status: boolean;
-  modifiedDate: string;
-}
+import type { ApiResponse, Vehicle, VehicleListApiData } from '../types/api';
 
 // Create response type for vehicle creation
 interface CreateVehicleResponse {
@@ -47,7 +24,7 @@ export class VehicleService {
   }
 
   // Update existing vehicle (with FormData for file upload)
-  async updateVehicle(formData: FormData): Promise<ApiResponse<VehicleData>> {
+  async updateVehicle(formData: FormData): Promise<ApiResponse<Vehicle>> {
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VEHICLES.UPDATE}`, {
       method: 'POST',
       headers: {
@@ -72,7 +49,7 @@ export class VehicleService {
   }
 
   // Get vehicle by ID
-  async getVehicleById(id: string): Promise<ApiResponse<VehicleData>> {
+  async getVehicleById(id: string): Promise<ApiResponse<Vehicle>> {
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VEHICLES.GET_BY_ID(id)}`, {
       method: 'GET',
       headers: {
@@ -82,8 +59,8 @@ export class VehicleService {
     return response.json();
   }
 
-  // Get all vehicles
-  async getAllVehicles(query?: any): Promise<ApiResponse<VehicleData[]>> {
+  // Get all vehicles (paginated response)
+  async getAllVehicles(query?: any): Promise<ApiResponse<VehicleListApiData>> {
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VEHICLES.LIST}`, {
       method: 'POST',
       headers: {

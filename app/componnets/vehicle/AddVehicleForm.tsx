@@ -180,13 +180,21 @@ export default function AddVehicleForm({
         formData.append('Color', form.color);
         formData.append('Make', form.make);
         formData.append('Model', form.model);
-        
+
         if (form.attachment) {
           formData.append('Attachment', form.attachment);
         }
 
+        console.log('[DEBUG] Calling updateVehicle API with:', {
+          editingId,
+          color: form.color,
+          make: form.make,
+          model: form.model,
+          hasAttachment: !!form.attachment
+        });
+
         const response = await vehicleService.updateVehicle(formData);
-        
+
         if ((response as any).success) {
           setSuccessMessage((response as any).message || "Vehicle updated successfully!");
           setShowSuccessModal(true);
@@ -213,12 +221,21 @@ export default function AddVehicleForm({
         });
 
         const response = await vehicleService.createVehicle(formData, params.toString());
-        
-        if (response.succeeded) {
-          setSuccessMessage(response.data || "Vehicle created successfully!");
+        console.log('Vehicle create response:', response);
+
+        // Consider success if succeeded is true OR if response.data contains an id or expected property
+        const createdId = response?.data?.id || response?.data?.vehicleId;
+        if (response.succeeded || createdId) {
+          let msg = "Vehicle created successfully!";
+          if (typeof response.data === "string") {
+            msg = response.data;
+          } else if (response.data && typeof response.data === "object") {
+            msg = response.data.message || msg;
+          }
+          setSuccessMessage(msg);
           setShowSuccessModal(true);
         } else {
-          setError(response.data || "Failed to create vehicle");
+          setError(typeof response.data === "string" ? response.data : "Failed to create vehicle");
         }
       }
     } catch (err) {

@@ -42,7 +42,7 @@ export const API_ENDPOINTS = {
     LIST: '/api/smartdha/visitorpass/get-all-visitors',
     CREATE: '/api/smartdha/visitorpass/add-visitorpass',
     UPDATE: '/api/smartdha/visitorpass/update-visitorpass',
-    DELETE: '/api/smartdha/visitorpass/delete',
+    DELETE: '/api/smartdha/visitorpass/delete-visitorpass',
     GET_BY_ID: (id: string) => `/api/smartdha/visitorpass/${id}`,
   },
   // Workers
@@ -50,12 +50,12 @@ export const API_ENDPOINTS = {
     LIST: '/api/smartdha/worker/get-all-workers',
     CREATE: '/api/smartdha/worker/add-worker',
     UPDATE: '/api/smartdha/worker/update-worker',
-    DELETE: '/api/smartdha/worker/delete',
+    DELETE: '/api/smartdha/worker/delete-worker',
     GET_BY_ID: (id: string) => `/api/smartdha/worker/${id}`,
   },
   // Luggage
   LUGGAGE: {
-    LIST: '/api/smartdha/luggage/get-all-luggage',
+    LIST: '/api/smartdha/luggagepass/getall',
     CREATE: '/api/smartdha/luggage/add-luggage',
     UPDATE: '/api/smartdha/luggage/update-luggage',
     DELETE: '/api/smartdha/luggage/delete',

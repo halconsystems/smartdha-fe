@@ -74,6 +74,7 @@ export class LuggageService {
         'accept': '*/*',
         'Authorization': `Bearer ${this.getAuthToken()}`,
       },
+      body: JSON.stringify({}) // Send empty object to avoid null request error
     });
 
     if (!response.ok) {
