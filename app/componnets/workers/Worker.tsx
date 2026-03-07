@@ -44,8 +44,14 @@ const Worker = () => {
 
   // Handle edit
   const handleEdit = (item: any) => {
-    localStorage.setItem('editWorkerData', JSON.stringify({ id: item.id }));
-    router.push('/worker/add-worker');
+    // Use workerId from API response
+    const workerId = item.workerId;
+    if (typeof workerId === 'string' && workerId.length > 0) {
+      localStorage.setItem('editWorkerData', JSON.stringify({ id: workerId }));
+      router.push('/worker/add-worker');
+    } else {
+      alert('Invalid worker ID. Cannot edit this worker.');
+    }
   };
 
   // Load workers from API
@@ -68,7 +74,7 @@ const Worker = () => {
 
         // Map API response to display format
         const mapped = fetched.map((worker: any) => ({
-          id: worker.id || Math.random().toString(), // Add ID for React key
+          workerId: worker.workerId || '', // Use workerId from API
           name: worker.name || "",
           jobType: getJobTypeLabel(worker.jobType),
           phone: worker.phoneNo || "",
@@ -237,7 +243,7 @@ const Worker = () => {
               {paginatedData.length > 0 ? (
                 paginatedData.map((item, index) => (
                   <tr
-                    key={item.id}
+                    key={item.workerId || index}
                     className={`${rowStyle(index)} hover:bg-gray-50`}
                   >
                     <td className="px-4 py-3 text-sm">

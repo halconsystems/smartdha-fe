@@ -213,7 +213,6 @@ const AddLuggagePass = () => {
           validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
           validTo: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
         };
-        
         response = await luggageService.updateLuggagePass({
           id: editId,
           ...updateData
@@ -224,15 +223,20 @@ const AddLuggagePass = () => {
         response = await luggageService.createLuggagePass(luggagePassData);
         setSuccessMessage("Luggage pass created successfully!");
       }
-      
-      if ((response as any).succeeded) {
-        // Show success modal
+
+      // Show API response in UI if not successful
+      if ((response as any).success || (response as any).succeeded) {
         setShowSuccessModal(true);
       } else {
-        setError("Failed to save luggage pass");
+        setError(
+          "Failed to save luggage pass.\nAPI response: " + JSON.stringify(response, null, 2)
+        );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      setError(
+        (err instanceof Error ? err.message : "An unexpected error occurred") +
+        (typeof err === 'object' && err !== null && 'response' in err ? `\nAPI response: ${JSON.stringify((err as any).response, null, 2)}` : "")
+      );
     } finally {
       setLoading(false);
     }

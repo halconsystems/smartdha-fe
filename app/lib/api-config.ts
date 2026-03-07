@@ -32,7 +32,7 @@ export const API_ENDPOINTS = {
   // Properties
   PROPERTIES: {
     LIST: '/api/smartdha/property/get-all-properties',
-    CREATE: '/api/smartdha/property/add-property',
+    CREATE: '/api/smartdha/residenceproperty/create',
     UPDATE: '/api/smartdha/property/update-property',
     DELETE: '/api/smartdha/property/delete',
     GET_BY_ID: (id: string) => `/api/smartdha/property/${id}`,
@@ -51,7 +51,7 @@ export const API_ENDPOINTS = {
     CREATE: '/api/smartdha/worker/add-worker',
     UPDATE: '/api/smartdha/worker/update-worker',
     DELETE: '/api/smartdha/worker/delete-worker',
-    GET_BY_ID: (id: string) => `/api/smartdha/worker/${id}`,
+    GET_BY_ID: (id: string) => `/api/smartdha/worker/get-worker-by-id/${id}`,
   },
   // Luggage
   LUGGAGE: {

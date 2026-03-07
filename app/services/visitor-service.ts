@@ -84,14 +84,16 @@ export class VisitorService {
     return response.json();
   }
 
-  // Update existing visitor
-  async updateVisitor(formData: FormData): Promise<ApiResponse<VisitorData>> {
+  // Update existing visitor (send JSON)
+  async updateVisitor(data: any): Promise<ApiResponse<VisitorData>> {
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.VISITORS.UPDATE}`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
+        'accept': '*/*',
         'Authorization': `Bearer ${this.getAuthToken()}`
       },
-      body: formData
+      body: JSON.stringify(data)
     });
     return response.json();
   }

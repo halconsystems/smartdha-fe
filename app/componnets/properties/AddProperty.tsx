@@ -72,10 +72,87 @@ const AddProperty: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [apiResponse, setApiResponse] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Form Data:", formData);
-    // Handle form submission here
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    setApiResponse(null);
+
+    try {
+      // Always use FormData for this API
+      const form = new FormData();
+      form.append('Category', formData.category);
+      form.append('Type', formData.type);
+      form.append('Phase', formData.phase);
+      form.append('Zone', formData.zone);
+      form.append('Khayaban', formData.khayaban);
+      form.append('Floor', formData.floor);
+      form.append('StreetNo', formData.laneStreetNo);
+      form.append('PossessionType', formData.possessionType);
+      form.append('PlotNo', formData.plotNoNumeric);
+      form.append('Plot', formData.plotNoAlpha);
+      // If you want to send combined plot, add as needed
+      // form.append('PlotNoCombined', formData.plotNoCombined);
+      form.append('Status', formData.status);
+      if (formData.proofOfPossession) {
+        form.append('proofOfPossession', formData.proofOfPossession);
+      }
+      if (formData.utilityBill) {
+        form.append('utilityBill', formData.utilityBill);
+      }
+
+      const response = await fetch('https://dfpwebp.dhakarachi.org/api/smartdha/residenceproperty/create', {
+        method: 'POST',
+        headers: {
+          // Do NOT set Content-Type, browser will set it for FormData
+        },
+        body: form,
+      });
+      const rawText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(rawText);
+        setApiResponse(JSON.stringify(result, null, 2));
+      } catch (jsonErr) {
+        setError(
+          'Failed to parse API response as JSON. Raw response: ' + rawText
+        );
+        setApiResponse(rawText);
+        return;
+      }
+      if (response.ok && (result.success || result.succeeded)) {
+        // Show actual API response message if available
+        let msg = '';
+        if (result.data && result.data.message) {
+          msg = result.data.message;
+        } else if (result.message) {
+          msg = result.message;
+        } else {
+          msg = JSON.stringify(result);
+        }
+        setSuccess(msg);
+      } else {
+        let errorMsg = 'Failed to add property.';
+        if (result.errors && Array.isArray(result.errors) && result.errors.length > 0) {
+          errorMsg += ' ' + result.errors[0];
+        } else if (result.message) {
+          errorMsg += ' ' + result.message;
+        } else {
+          errorMsg += ' ' + JSON.stringify(result);
+        }
+        setError(errorMsg);
+      }
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Reusable field box
@@ -188,6 +265,22 @@ const AddProperty: React.FC = () => {
         </div>
 
         {/* Form */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+            {success}
+          </div>
+        )}
+        {apiResponse && (
+          <div className="mb-4 p-3 bg-gray-50 border border-gray-300 rounded-lg text-xs text-gray-800">
+            <strong>API Response:</strong>
+            <pre className="whitespace-pre-wrap break-all">{apiResponse}</pre>
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           {/* Row 1: Category + Type */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -579,6 +672,17 @@ const AddProperty: React.FC = () => {
             </div>
           </div>
 
+          {/* Debug: Show FormData body */}
+          <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg text-xs text-gray-700">
+            <strong>FormData Body Preview:</strong>
+            <ul className="mt-1">
+              {Object.entries(formData).map(([key, value]) => (
+                <li key={key}>
+                  <span className="font-semibold">{key}:</span> {value instanceof File ? value.name : String(value)}
+                </li>
+              ))}
+            </ul>
+          </div>
           {/* Submit Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
@@ -590,9 +694,10 @@ const AddProperty: React.FC = () => {
             </button>
             <button
               type="submit"
-              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
+              disabled={loading}
+              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Add Property
+              {loading ? 'Adding Property...' : 'Add Property'}
             </button>
           </div>
         </form>

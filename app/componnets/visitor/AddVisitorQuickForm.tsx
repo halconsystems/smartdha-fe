@@ -119,10 +119,16 @@ const AddVisitorQuickForm: React.FC<AddVisitorQuickFormProps> = ({ mode = "add" 
 
         setEditingId(parsed.id);
         const response = await visitorService.getVisitorById(parsed.id);
-        const visitor = response?.data;
+        // Support both wrapped and direct visitor object
+        let visitor = response?.data;
+        if (!visitor && response && typeof response === 'object' && response.id && response.name) {
+          visitor = response;
+        }
 
         if (!visitor) {
-          setError("Failed to load visitor data.");
+          setError(
+            `Failed to load visitor data.\nAPI response: ${JSON.stringify(response, null, 2)}`
+          );
           return;
         }
 
@@ -146,7 +152,13 @@ const AddVisitorQuickForm: React.FC<AddVisitorQuickFormProps> = ({ mode = "add" 
           toDate: visitor.validTo ? String(visitor.validTo).slice(0, 10) : "",
         });
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load visitor data.");
+        let errorMsg = "Failed to load visitor data.";
+        if (err instanceof Error) {
+          errorMsg += `\nError: ${err.message}`;
+        } else if (typeof err === "object") {
+          errorMsg += `\nError: ${JSON.stringify(err, null, 2)}`;
+        }
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
@@ -197,16 +209,16 @@ const AddVisitorQuickForm: React.FC<AddVisitorQuickFormProps> = ({ mode = "add" 
       let response;
 
       if (isEditing && editingId) {
-        const updatePayload = new FormData();
-        updatePayload.append("id", editingId);
-        updatePayload.append("name", visitorData.name || "");
-        updatePayload.append("cnic", visitorData.cnic || "");
-        updatePayload.append("vehicleLicensePlate", visitorData.vehicleLicensePlate || "");
-        updatePayload.append("vehicleLicenseNo", String(visitorData.vehicleLicenseNo || ""));
-        updatePayload.append("visitorPassType", String(visitorData.visitorPassType));
-        updatePayload.append("validFrom", visitorData.validFrom || "");
-        updatePayload.append("validTo", visitorData.validTo || "");
-
+        const updatePayload = {
+          id: editingId,
+          name: visitorData.name || "",
+          cnic: visitorData.cnic || "",
+          vehicleLicensePlate: visitorData.vehicleLicensePlate || "",
+          vehicleLicenseNo: visitorData.vehicleLicenseNo || "",
+          visitorPassType: visitorData.visitorPassType,
+          validFrom: visitorData.validFrom || "",
+          validTo: visitorData.validTo || ""
+        };
         response = await visitorService.updateVisitor(updatePayload);
       } else {
         response = await visitorService.quickAddVisitor(visitorData);
@@ -228,7 +240,10 @@ const AddVisitorQuickForm: React.FC<AddVisitorQuickFormProps> = ({ mode = "add" 
         });
         localStorage.removeItem("editVisitorData");
       } else {
-        setError(response.message || (isEditing ? "Failed to update visitor pass" : "Failed to add visitor pass"));
+        setError(
+          (response.message || (isEditing ? "Failed to update visitor pass" : "Failed to add visitor pass")) +
+          `\nAPI response: ${JSON.stringify(response, null, 2)}`
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");

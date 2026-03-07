@@ -4,23 +4,13 @@ import { API_CONFIG, API_ENDPOINTS } from '../lib/api-config';
 interface ApiResponse<T = any> {
   success: boolean;
   message: string;
-  data: T;
+  data: T | null;
   errors: string[];
 }
 
 // Worker data structure from your API
-interface WorkerData {
-  name: string;
-  cnic: string;
-  phoneNo: string;
-  dob: string;
-  workerCardNo: string | null;
-  policeVerification: boolean;
-  isActive: boolean;
-  image: string;
-  jobType: number;
-  workerCardDeliveryType: number;
-}
+import type { Worker } from '../types/api';
+type WorkerData = Worker;
 
 // Worker API Service
 export class WorkerService {
@@ -44,7 +34,25 @@ export class WorkerService {
         'Authorization': `Bearer ${this.getAuthToken()}`
       }
     });
-    return response.json();
+    const text = await response.text();
+    if (!text) {
+      return {
+        success: false,
+        message: `Empty response from server (status: ${response.status})`,
+        data: null,
+        errors: []
+      };
+    }
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      return {
+        success: false,
+        message: `Invalid JSON from server: ${err}. Raw response: ${text}`,
+        data: null,
+        errors: []
+      };
+    }
   }
 
   // Update existing worker
@@ -56,7 +64,25 @@ export class WorkerService {
       },
       body: formData
     });
-    return response.json();
+    const text = await response.text();
+    if (!text) {
+      return {
+        success: false,
+        message: `Empty response from server (status: ${response.status})`,
+        data: null,
+        errors: []
+      };
+    }
+    try {
+      return JSON.parse(text);
+    } catch (err) {
+      return {
+        success: false,
+        message: `Invalid JSON from server: ${err}. Raw response: ${text}`,
+        data: null,
+        errors: []
+      };
+    }
   }
 
   // Delete worker

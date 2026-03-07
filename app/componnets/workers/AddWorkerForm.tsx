@@ -103,22 +103,37 @@ const AddWorkerForm: React.FC = () => {
   const [policePreview, setPolicePreview] = useState<string | null>(null);
   const [cnicFrontPreview, setCnicFrontPreview] = useState<string | null>(null);
   const [cnicBackPreview, setCnicBackPreview] = useState<string | null>(null);
+  // const [apiUrl, setApiUrl] = useState<string | null>(null);
 
   const [jobTypeDropdownOpen, setJobTypeDropdownOpen] = useState<boolean>(false);
   const [cardDeliveryDropdownOpen, setCardDeliveryDropdownOpen] = useState<boolean>(false);
   const [policeVerificationDropdownOpen, setPoliceVerificationDropdownOpen] = useState<boolean>(false);
   const [addressDropdownOpen, setAddressDropdownOpen] = useState<boolean>(false);
 
-  // Check if we're in edit mode
+  // Check if we're in edit mode (accept any string ID)
   useEffect(() => {
     const editData = localStorage.getItem('editWorkerData');
-    if (editData) {
+    if (editData && editData.trim() !== "") {
       try {
-        const { id } = JSON.parse(editData);
-        setEditingId(id);
-        setIsEditing(true);
-        loadWorkerData(id);
+        if (editData.startsWith("{") && editData.endsWith("}")) {
+          const parsed = JSON.parse(editData);
+          const id = parsed.id;
+          if (typeof id === 'string' && id.length > 0) {
+            setEditingId(id);
+            setIsEditing(true);
+            loadWorkerData(id);
+          } else {
+            setError(`Invalid worker ID: ${id}`);
+          }
+        } else {
+          setError(
+            `Edit data in localStorage is not valid JSON. Raw data: ${editData}`
+          );
+        }
       } catch (error) {
+        setError(
+          `Error parsing edit data: ${error instanceof Error ? error.message : String(error)}\nRaw data: ${editData}`
+        );
         console.error('Error parsing edit data:', error);
       }
     }
@@ -128,34 +143,35 @@ const AddWorkerForm: React.FC = () => {
   const loadWorkerData = async (id: string) => {
     try {
       setLoading(true);
+      // const url = `https://dfpwebp.dhakarachi.org/api/smartdha/worker/get-worker-by-id/${id}`;
+      // setApiUrl(url);
       const response = await workerService.getWorkerById(id);
-      if (response.success) {
+      if (response.success && response.data) {
         const worker = response.data;
-        console.log("Loaded worker for editing:", worker);
-        
-        // Map API data to form format
         setFormData({
           searchQuery: "",
-          jobType: getJobTypeLabel(worker.jobType),
+          jobType: typeof worker.jobType === 'number' ? getJobTypeLabel(worker.jobType) : (typeof worker.jobType === 'string' ? getJobTypeLabel(Number(worker.jobType)) : ""),
           fullName: worker.name || "",
-          fatherHusbandName: "", // Not available in API
-          dob: worker.dob || "",
-          cellNumber: worker.phoneNo || "",
+          fatherHusbandName: "", // Not in Worker type
+          dob: "", // Not in Worker type
+          cellNumber: "", // Not in Worker type
           cnic: worker.cnic || "",
-          policeVerification: worker.policeVerification ? "Yes" : "No",
-          cardDelivery: getCardDeliveryLabel(worker.workerCardDeliveryType),
-          address: "", // Not available in API
-          status: worker.isActive ? "Active" : "Inactive",
+          policeVerification: "", // Not in Worker type
+          cardDelivery: worker.cardDeliveryType !== undefined ? (typeof worker.cardDeliveryType === 'number' ? getCardDeliveryLabel(worker.cardDeliveryType) : getCardDeliveryLabel(Number(worker.cardDeliveryType))) : "",
+          address: "", // Not in Worker type
+          status: worker.isActive === false ? "Inactive" : "Active",
           profilePicture: null,
           policeVerificationPicture: null,
           cnicFront: null,
           cnicBack: null,
         });
       } else {
-        setError(response.message || "Failed to load worker data");
+        setError("Worker not found. Please check the ID or select a valid worker.\n" + (response.message ? response.message : "") );
+        setIsEditing(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load worker data");
+      setError("Worker not found. Please check the ID or select a valid worker.");
+      setIsEditing(false);
     } finally {
       setLoading(false);
     }
@@ -206,7 +222,6 @@ const AddWorkerForm: React.FC = () => {
     try {
       // Create FormData for API (supports file uploads)
       const formDataToSend = new FormData();
-      
       // Add all form fields
       formDataToSend.append('name', formData.fullName);
       formDataToSend.append('fatherHusbandName', formData.fatherHusbandName);
@@ -218,7 +233,6 @@ const AddWorkerForm: React.FC = () => {
       formDataToSend.append('workerCardDeliveryType', getCardDeliveryNumber(formData.cardDelivery).toString());
       formDataToSend.append('isActive', formData.status === "Active" ? "true" : "false");
       formDataToSend.append('address', formData.address);
-      
       // Add files if they exist
       if (formData.profilePicture) {
         formDataToSend.append('profilePicture', formData.profilePicture);
@@ -232,9 +246,7 @@ const AddWorkerForm: React.FC = () => {
       if (formData.cnicBack) {
         formDataToSend.append('cnicBack', formData.cnicBack);
       }
-
       const response = await workerService.createWorker(formDataToSend);
-      
       if (response.success) {
         setShowSuccessModal(true);
         // Reset form
@@ -261,10 +273,16 @@ const AddWorkerForm: React.FC = () => {
         setCnicFrontPreview(null);
         setCnicBackPreview(null);
       } else {
-        setError(response.message || "Failed to add worker");
+        setError(
+          (response.message || "Failed to add worker") +
+          `\nAPI response: ${JSON.stringify(response, null, 2)}`
+        );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      setError(
+        (err instanceof Error ? err.message : "An unexpected error occurred") +
+        (typeof err === 'object' && err !== null && 'response' in err ? `\nAPI response: ${JSON.stringify((err as any).response, null, 2)}` : "")
+      );
     } finally {
       setLoading(false);
     }
@@ -283,7 +301,7 @@ const AddWorkerForm: React.FC = () => {
       
       // Add worker ID for update
       if (editingId) {
-        formDataToSend.append('id', editingId);
+        formDataToSend.append('workerId', editingId);
       }
       
       // Add all form fields
@@ -317,7 +335,7 @@ const AddWorkerForm: React.FC = () => {
       if (response.success) {
         setShowSuccessModal(true);
       } else {
-        setError(response.message || "Failed to update worker");
+        setError((response.message || "Failed to update worker") + `\nAPI response: ${JSON.stringify(response, null, 2)}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -431,9 +449,35 @@ const AddWorkerForm: React.FC = () => {
     router.push('/worker');
   };
 
+  if (error && isEditing) {
+    return (
+      <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
+        <div className="w-full max-w-4xl mx-auto">
+          <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+            {error}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setIsEditing(false);
+              localStorage.removeItem('editWorkerData');
+              window.history.back();
+            }}
+            className="py-3 rounded-xl bg-white text-[#30B33D] text-[15px] font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition mt-4"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
       <div className="w-full max-w-4xl mx-auto">
+
+        {/* API URL display removed as requested */}
 
         {/* Header */}
         <div className="mb-6 flex justify-between items-center">

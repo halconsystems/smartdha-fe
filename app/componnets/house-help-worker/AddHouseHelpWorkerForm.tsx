@@ -37,7 +37,7 @@ const AddHouseHelpWorkerForm: React.FC = () => {
 
   useEffect(() => {
     const editData = localStorage.getItem("editHouseHelpWorkerData");
-    if (!editData) {
+    if (!editData || editData === "null" || editData.trim() === "") {
       return;
     }
 
