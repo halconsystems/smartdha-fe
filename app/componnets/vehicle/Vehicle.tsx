@@ -10,7 +10,7 @@ import SvgIcon from "../shared/SvgIcon";
 import WarningModal from "../shared/WarningModal";
 import SuccessModal from "../shared/SuccessModal";
 import { vehicleService } from "../../services/vehicle-service";
-import type { Vehicle } from "../../types/api";
+import type { Vehicle as VehicleRecord } from "../../types/api";
 import { useAuth } from "../../hooks/useAuth";
 
 /* ================= TYPES ================= */
@@ -29,17 +29,17 @@ type ResidentType = {
 
 /* ================= COMPONENT ================= */
 
-const Vehicle = () => {
-    const [apiResponse, setApiResponse] = useState<any>(null);
+const VehicleList = () => {
+  const [apiResponse, setApiResponse] = useState<any>(null);
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<Vehicle | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<VehicleRecord | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -53,9 +53,14 @@ const Vehicle = () => {
       const response = await vehicleService.getAllVehicles({});
       // setApiResponse(response); // Remove API response debug output
       if (response.success) {
-        // Ensure fetched is always an array (fix for paged API response)
-        const fetched = Array.isArray(response.data?.items) ? response.data.items : [];
-        const mapped: Vehicle[] = fetched.map((d: any) => ({
+        // Support both API shapes: paged ({ items: [...] }) and plain array ([...])
+        const fetched = Array.isArray(response.data?.items)
+          ? response.data.items
+          : Array.isArray(response.data)
+          ? response.data
+          : [];
+
+        const mapped: VehicleRecord[] = fetched.map((d: any) => ({
           id: d.id ?? d.vehicleId ?? "",
           licenseNo: Number(d.licenseNo ?? d.license_no ?? 0),
           license: d.license ?? "",
@@ -75,6 +80,7 @@ const Vehicle = () => {
               ? d.status.toLowerCase() === "true"
               : false,
         }));
+
         setVehicles(mapped);
       } else {
         setError(response.message || "Failed to load vehicles");
@@ -90,20 +96,26 @@ const Vehicle = () => {
     loadVehicles();
   }, []);
 
+  useEffect(() => {
+    // Keep current page valid when row count changes.
+    setCurrentPage((prev) => Math.min(prev, Math.max(1, Math.ceil(vehicles.length / rowsPerPage))));
+  }, [vehicles.length, rowsPerPage]);
+
   // Pagination
-  const totalPages = Math.ceil(vehicles.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
+  const totalPages = Math.max(1, Math.ceil(vehicles.length / rowsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
   const paginatedData = vehicles.slice(startIndex, endIndex);
 
   // Handle edit
-  const handleEdit = (item: Vehicle) => {
+  const handleEdit = (item: VehicleRecord) => {
     localStorage.setItem('editVehicleData', JSON.stringify({ id: item.id }));
     router.push('/vehicle/add-vehicle');
   };
 
   // Handle delete
-  const handleDelete = (item: Vehicle) => {
+  const handleDelete = (item: VehicleRecord) => {
     setItemToDelete(item);
     setShowDeleteModal(true);
   };
@@ -156,7 +168,10 @@ const Vehicle = () => {
 
       <div className="flex justify-end mb-6">
         <button
-          onClick={() => router.push("/vehicle/add-vehicle")}
+          onClick={() => {
+            localStorage.removeItem('editVehicleData');
+            router.push("/vehicle/add-vehicle");
+          }}
           className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                      text-white text-sm font-semibold px-4 py-2 rounded-xl
                      hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
@@ -223,57 +238,65 @@ const Vehicle = () => {
             </thead>
 
             <tbody>
-              {paginatedData.map((item, index) => (
-                <tr
-                  key={`${item.licenseNo}-${item.license || 'no-license'}-${index}`}
-                  className={`${rowStyle(index)} hover:bg-gray-50`}
-                >
-                  <td className="px-4 py-3 text-sm">
-                    {item.license ? item.license + " " + item.licenseNo : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.eTagId ? item.eTagId : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.ownership ? item.ownership : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">{item.make}</td>
-                  <td className="px-4 py-3 text-sm">{item.model}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.year ? item.year : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {item.color ? item.color : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        item.isActive
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {item.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex justify-center gap-3">
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200"
+              {paginatedData.length > 0 ? (
+                paginatedData.map((item, index) => (
+                  <tr
+                    key={`${item.licenseNo}-${item.license || 'no-license'}-${index}`}
+                    className={`${rowStyle(index)} hover:bg-gray-50`}
+                  >
+                    <td className="px-4 py-3 text-sm">
+                      {item.license ? item.license + " " + item.licenseNo : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.eTagId ? item.eTagId : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.ownership ? item.ownership : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm">{item.make}</td>
+                    <td className="px-4 py-3 text-sm">{item.model}</td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.year ? item.year : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {item.color ? item.color : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs ${
+                          item.isActive
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                        }`}
                       >
-                        <SvgIcon name="Edit-Icon" size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item)}
-                        className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200"
-                      >
-                        <SvgIcon name="delete-icon" size={14} />
-                      </button>
-                    </div>
+                        {item.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center gap-3">
+                        <button
+                          onClick={() => handleEdit(item)}
+                          className="w-8 h-8 p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"
+                        >
+                          <SvgIcon name="Edit-Icon" size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item)}
+                          className="w-8 h-8 p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center"
+                        >
+                          <SvgIcon name="delete-icon" size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-4 py-8 text-center text-sm text-gray-500" colSpan={9}>
+                    No vehicle records found.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -289,9 +312,9 @@ const Vehicle = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={safeCurrentPage === 1}
               className={`p-2 rounded border transition ${
-                currentPage === 1
+                safeCurrentPage === 1
                   ? "border-gray-300 text-gray-300 cursor-not-allowed"
                   : "border-[#30B33D] text-[#30B33D] hover:bg-[#30B33D] hover:text-white"
               }`}
@@ -300,14 +323,14 @@ const Vehicle = () => {
             </button>
 
             <span className="px-4 py-1.5 rounded bg-[#30B33D] text-white text-sm font-semibold">
-              {currentPage} / {totalPages}
+              {safeCurrentPage} / {totalPages}
             </span>
 
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              disabled={safeCurrentPage === totalPages}
               className={`p-2 rounded border transition ${
-                currentPage === totalPages
+                safeCurrentPage === totalPages
                   ? "border-gray-300 text-gray-300 cursor-not-allowed"
                   : "border-[#30B33D] text-[#30B33D] hover:bg-[#30B33D] hover:text-white"
               }`}
@@ -345,4 +368,4 @@ const Vehicle = () => {
   );
 };
 
-export default Vehicle;
+export default VehicleList;

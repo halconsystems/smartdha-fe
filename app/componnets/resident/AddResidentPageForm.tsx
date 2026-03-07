@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 type Tab = "resident" | "commercial";
 
@@ -31,6 +31,7 @@ const AddResidentPageForm: React.FC<{
 }> = ({
   initialTab = "resident",
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
@@ -64,12 +65,45 @@ const AddResidentPageForm: React.FC<{
     utilityBill: null,
   });
 
-  const handleInputChange = (
+  useEffect(() => {
+    const editData = localStorage.getItem("editResidentData");
+    if (!editData) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(editData) as Partial<FormData>;
+      setIsEditing(true);
+      setFormData((prev) => ({
+        ...prev,
+        fullName: parsed.fullName ?? prev.fullName,
+        emailAddress: parsed.emailAddress ?? prev.emailAddress,
+        cellNumber: parsed.cellNumber ?? prev.cellNumber,
+        category: parsed.category ?? prev.category,
+        subCategory: parsed.subCategory ?? prev.subCategory,
+        phase: parsed.phase ?? prev.phase,
+        zone: parsed.zone ?? prev.zone,
+        khayaban: parsed.khayaban ?? prev.khayaban,
+        laneStreetNo: parsed.laneStreetNo ?? prev.laneStreetNo,
+        floor: parsed.floor ?? prev.floor,
+        plotNoNumeric: parsed.plotNoNumeric ?? prev.plotNoNumeric,
+        plotNoAlphabetic: parsed.plotNoAlphabetic ?? prev.plotNoAlphabetic,
+        plotNoAlphaNumeric: parsed.plotNoAlphaNumeric ?? prev.plotNoAlphaNumeric,
+      }));
+
+      const selectedTab: Tab = parsed.category?.toLowerCase() === "commercial" ? "commercial" : "resident";
+      setActiveTab(selectedTab);
+    } catch (error) {
+      console.error("Error parsing resident edit data:", error);
+    }
+  }, []);
+
+  const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     if (e.target.files && e.target.files[0]) {
@@ -94,7 +128,13 @@ const AddResidentPageForm: React.FC<{
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     console.log("Form Data:", formData);
+    localStorage.removeItem("editResidentData");
     // Handle form submission here
+  };
+
+  const handleCancel = () => {
+    localStorage.removeItem("editResidentData");
+    window.history.back();
   };
 
   const categories: string[] = ["Resident", "Commercial"];
@@ -106,14 +146,14 @@ const AddResidentPageForm: React.FC<{
   const zones: string[] = ["Zone A", "Zone B", "Zone C", "Zone D"];
 
   // Reusable field box
-  const FieldBox = ({ children }: { children: React.ReactNode }) => (
+  const FieldBox = useCallback(({ children }: { children: React.ReactNode }) => (
     <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 relative">
       {children}
     </div>
-  );
+  ), []);
 
   // Reusable label
-  const FieldLabel = ({
+  const FieldLabel = useCallback(({
     text,
     required = false,
     green = true,
@@ -125,10 +165,10 @@ const AddResidentPageForm: React.FC<{
     <label className={`block text-xs font-semibold mb-1.5 ${green ? "text-[#30B33D]" : "text-gray-700"}`}>
       {text} {required && <span className="text-red-500">*</span>}
     </label>
-  );
+  ), []);
 
   // Reusable input
-  const TextInput = ({
+  const TextInput = useCallback(({
     name,
     value,
     placeholder,
@@ -150,7 +190,7 @@ const AddResidentPageForm: React.FC<{
       required={required}
       className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
     />
-  );
+  ), [handleInputChange]);
 
   return (
     <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
@@ -158,7 +198,9 @@ const AddResidentPageForm: React.FC<{
 
         {/* Header */}
         <div className="mb-6">
-          <p className="text-lg font-semibold text-black">Please provide details below!</p>
+          <p className="text-lg font-semibold text-black">
+            {isEditing ? "Edit resident details" : "Please provide details below!"}
+          </p>
         </div>
 
         {/* Form */}
@@ -537,7 +579,7 @@ const AddResidentPageForm: React.FC<{
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={handleCancel}
               className="py-3 rounded-xl bg-white text-[#30B33D] text-[15px] font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition"
             >
               Cancel
@@ -546,7 +588,7 @@ const AddResidentPageForm: React.FC<{
               type="submit"
               className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
             >
-              Add
+              {isEditing ? "Update" : "Add"}
             </button>
           </div>
         </form>

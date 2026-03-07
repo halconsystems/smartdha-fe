@@ -60,7 +60,12 @@ const Worker = () => {
       const response = await workerService.getAllWorkers({ id: userId });
       // setApiResponse(response); // Debug output removed
       if (response.success) {
-        const fetched = Array.isArray(response.data?.items) ? response.data.items : [];
+        const fetched = Array.isArray(response.data?.items)
+          ? response.data.items
+          : Array.isArray(response.data)
+          ? response.data
+          : [];
+
         // Map API response to display format
         const mapped = fetched.map((worker: any) => ({
           id: worker.id || Math.random().toString(), // Add ID for React key
@@ -74,6 +79,7 @@ const Worker = () => {
           cardDelivery: getCardDeliveryLabel(worker.workerCardDeliveryType),
           isActive: worker.isActive,
         }));
+
         setWorkers(mapped);
       } else {
         setError(response.message || "Failed to load workers");
@@ -119,14 +125,19 @@ const Worker = () => {
     loadWorkers();
   }, []);
 
+  useEffect(() => {
+    // Keep page in range whenever result count or page size changes.
+    setCurrentPage((prev) => Math.min(prev, Math.max(1, Math.ceil(workers.length / rowsPerPage))));
+  }, [workers.length, rowsPerPage]);
+
   /* ================= PAGINATION ================= */
 
-  const totalPages = Math.ceil(
-    workers.length / rowsPerPage
-  );
+  const totalPages = Math.max(1, Math.ceil(workers.length / rowsPerPage));
+
+  const safeCurrentPage = Math.min(currentPage, totalPages);
 
   const startIndex =
-    (currentPage - 1) * rowsPerPage;
+    (safeCurrentPage - 1) * rowsPerPage;
 
   const endIndex = startIndex + rowsPerPage;
 
@@ -157,7 +168,10 @@ const Worker = () => {
 
       <div className="flex justify-end mb-6">
         <button
-          onClick={() => router.push("/worker/add-worker")}
+          onClick={() => {
+            localStorage.removeItem('editWorkerData');
+            router.push("/worker/add-worker");
+          }}
           className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                      text-white text-sm font-semibold px-4 py-2 rounded-xl
                      hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
@@ -220,50 +234,58 @@ const Worker = () => {
             </thead>
 
             <tbody>
-              {paginatedData.map((item, index) => (
-                <tr
-                  key={item.id}
-                  className={`${rowStyle(index)} hover:bg-gray-50`}
-                >
-                  <td className="px-4 py-3 text-sm">
-                    {item.name}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.jobType}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.phone}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.dob}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.cnic}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.workerCardNo}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.policeVerification}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {item.cardDelivery}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex justify-center gap-3">
-                      <button 
-                        onClick={() => handleEdit(item)}
-                        className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200"
-                      >
-                        <SvgIcon name="Edit-Icon" size={16} />
-                      </button>
-                      <button className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200">
-                        <SvgIcon name="delete-icon" size={16} />
-                      </button>
-                    </div>
+              {paginatedData.length > 0 ? (
+                paginatedData.map((item, index) => (
+                  <tr
+                    key={item.id}
+                    className={`${rowStyle(index)} hover:bg-gray-50`}
+                  >
+                    <td className="px-4 py-3 text-sm">
+                      {item.name}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.jobType}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.phone}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.dob}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.cnic}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.workerCardNo}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.policeVerification}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {item.cardDelivery}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center gap-3">
+                        <button 
+                          onClick={() => handleEdit(item)}
+                          className="w-8 h-8 p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"
+                        >
+                          <SvgIcon name="Edit-Icon" size={14} />
+                        </button>
+                        <button className="w-8 h-8 p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center">
+                          <SvgIcon name="delete-icon" size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-4 py-8 text-center text-sm text-gray-500" colSpan={9}>
+                    No worker records found.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -282,8 +304,8 @@ const Worker = () => {
               onClick={() =>
                 setCurrentPage((p) => Math.max(1, p - 1))
               }
-              disabled={currentPage === 1}
-              className={`p-2 rounded border transition ${currentPage === 1
+              disabled={safeCurrentPage === 1}
+              className={`p-2 rounded border transition ${safeCurrentPage === 1
                   ? "border-gray-300 text-gray-300 cursor-not-allowed"
                   : "border-[#30B33D] text-[#30B33D] hover:bg-[#30B33D] hover:text-white"
                 }`}
@@ -292,7 +314,7 @@ const Worker = () => {
             </button>
 
             <span className="px-4 py-1.5 rounded bg-[#30B33D] text-white text-sm font-semibold">
-              {currentPage} / {totalPages}
+              {safeCurrentPage} / {totalPages}
             </span>
 
             <button
@@ -301,8 +323,8 @@ const Worker = () => {
                   Math.min(totalPages, p + 1)
                 )
               }
-              disabled={currentPage === totalPages}
-              className={`p-2 rounded border transition ${currentPage === totalPages
+              disabled={safeCurrentPage === totalPages}
+              className={`p-2 rounded border transition ${safeCurrentPage === totalPages
                   ? "border-gray-300 text-gray-300 cursor-not-allowed"
                   : "border-[#30B33D] text-[#30B33D] hover:bg-[#30B33D] hover:text-white"
                 }`}

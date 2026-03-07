@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { visitorService } from "../../services/visitor-service";
 import { VisitorPassType } from "../../types/api";
 
@@ -74,7 +75,14 @@ const TextInput = ({
   />
 );
 
-const AddVisitorQuickForm: React.FC = () => {
+type AddVisitorQuickFormProps = {
+  mode?: "add" | "edit";
+};
+
+const AddVisitorQuickForm: React.FC<AddVisitorQuickFormProps> = ({ mode = "add" }) => {
+  const router = useRouter();
+  const [isEditing, setIsEditing] = useState(mode === "edit");
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({
     fullName: "",
     cnicNo: "",
@@ -91,6 +99,62 @@ const AddVisitorQuickForm: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  useEffect(() => {
+    if (mode !== "edit") return;
+
+    const editData = localStorage.getItem("editVisitorData");
+    if (!editData) {
+      setError("No visitor selected for editing.");
+      return;
+    }
+
+    const loadVisitor = async () => {
+      try {
+        setLoading(true);
+        const parsed = JSON.parse(editData);
+        if (!parsed?.id) {
+          setError("Invalid visitor selection.");
+          return;
+        }
+
+        setEditingId(parsed.id);
+        const response = await visitorService.getVisitorById(parsed.id);
+        const visitor = response?.data;
+
+        if (!visitor) {
+          setError("Failed to load visitor data.");
+          return;
+        }
+
+        const plate = visitor.vehicleLicensePlate || "";
+        const [alphaPart = "", numericPart = ""] = plate.includes("-")
+          ? plate.split("-")
+          : [plate, String(visitor.vehicleLicenseNo || "")];
+
+        const normalizedType = Number(visitor.visitorPassType) === VisitorPassType.LONG_STAY
+          ? "longStay"
+          : "dayPass";
+
+        setFormData({
+          fullName: visitor.name || "",
+          cnicNo: visitor.cnic || "",
+          vehicleNoAlpha: alphaPart,
+          vehicleNoNumeric: numericPart || String(visitor.vehicleLicenseNo || ""),
+          licensePlate: plate,
+          quickPick: normalizedType,
+          fromDate: visitor.validFrom ? String(visitor.validFrom).slice(0, 10) : "",
+          toDate: visitor.validTo ? String(visitor.validTo).slice(0, 10) : "",
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load visitor data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadVisitor();
+  }, [mode]);
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
@@ -101,7 +165,11 @@ const AddVisitorQuickForm: React.FC = () => {
       
       // Auto-update license plate when vehicle number fields change
       if (name === 'vehicleNoAlpha' || name === 'vehicleNoNumeric') {
-        updated.licensePlate = `${updated.vehicleNoAlpha}-${updated.vehicleNoNumeric}`;
+        const alpha = updated.vehicleNoAlpha.trim();
+        const numeric = updated.vehicleNoNumeric.trim();
+        updated.licensePlate = alpha || numeric
+          ? `${alpha}${alpha && numeric ? "-" : ""}${numeric}`
+          : "";
       }
       
       return updated;
@@ -126,10 +194,26 @@ const AddVisitorQuickForm: React.FC = () => {
         validTo: formData.toDate,
       };
 
-      const response = await visitorService.quickAddVisitor(visitorData);
-      
-      if (response.succeeded) {
-        setSuccess("Visitor Pass Created Successfully");
+      let response;
+
+      if (isEditing && editingId) {
+        const updatePayload = new FormData();
+        updatePayload.append("id", editingId);
+        updatePayload.append("name", visitorData.name || "");
+        updatePayload.append("cnic", visitorData.cnic || "");
+        updatePayload.append("vehicleLicensePlate", visitorData.vehicleLicensePlate || "");
+        updatePayload.append("vehicleLicenseNo", String(visitorData.vehicleLicenseNo || ""));
+        updatePayload.append("visitorPassType", String(visitorData.visitorPassType));
+        updatePayload.append("validFrom", visitorData.validFrom || "");
+        updatePayload.append("validTo", visitorData.validTo || "");
+
+        response = await visitorService.updateVisitor(updatePayload);
+      } else {
+        response = await visitorService.quickAddVisitor(visitorData);
+      }
+
+      if (response.succeeded || response.success) {
+        setSuccess(isEditing ? "Visitor Pass Updated Successfully" : "Visitor Pass Created Successfully");
         setShowSuccessModal(true);
         // Reset form
         setFormData({
@@ -142,8 +226,9 @@ const AddVisitorQuickForm: React.FC = () => {
           fromDate: "",
           toDate: "",
         });
+        localStorage.removeItem("editVisitorData");
       } else {
-        setError(response.message || "Failed to add visitor pass");
+        setError(response.message || (isEditing ? "Failed to update visitor pass" : "Failed to add visitor pass"));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -154,8 +239,7 @@ const AddVisitorQuickForm: React.FC = () => {
 
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false);
-    // Redirect to visitor listing page
-    window.location.href = '/visitor';
+    router.push('/visitor');
   };
 
   return (
@@ -333,7 +417,10 @@ const AddVisitorQuickForm: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={() => {
+                localStorage.removeItem("editVisitorData");
+                router.push('/visitor');
+              }}
               className="py-3 rounded-xl bg-white text-[#30B33D] text-[15px] font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition"
             >
               Cancel
@@ -343,7 +430,7 @@ const AddVisitorQuickForm: React.FC = () => {
               disabled={loading}
               className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Adding..." : "Add Visitor"}
+              {loading ? (isEditing ? "Updating..." : "Adding...") : (isEditing ? "Update Visitor" : "Add Visitor")}
             </button>
           </div>
         </form>

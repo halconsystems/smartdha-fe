@@ -85,6 +85,11 @@ const Resident = () => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
+  const handleEdit = (item: ResidentType | CommercialType) => {
+    localStorage.setItem("editResidentData", JSON.stringify(item));
+    router.push("/residents/add-residents");
+  };
+
   /* ================= LARGE DUMMY DATA ================= */
 
   const dummyResidents: ResidentType[] = Array.from(
@@ -247,7 +252,10 @@ const Resident = () => {
         <div>
           <div className="flex justify-end mb-6">
             <button
-              onClick={() => router.push("/residents/add-residents")}
+              onClick={() => {
+                localStorage.removeItem("editResidentData");
+                router.push("/residents/add-residents");
+              }}
               className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                        text-white text-sm font-semibold px-4 py-2 rounded-xl
                        hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
@@ -417,7 +425,10 @@ const Resident = () => {
                            >
                                 <FiBook size={14} />
                             </button>
-                          <button className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200">
+                          <button
+                            onClick={() => handleEdit(item as ResidentType | CommercialType)}
+                            className="w-8 h-8 p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"
+                          >
                             <SvgIcon name="Edit-Icon" size={14} />
                           </button>
                         </div>

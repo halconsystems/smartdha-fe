@@ -146,8 +146,21 @@ export default function AddVehicleForm({
     }
   };
 
-  const set = (field: keyof VehicleFormData, value: string) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+  const set = useCallback((field: keyof VehicleFormData, value: string) => {
+    setForm((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      if (field === "vehicleNoABC" || field === "vehicleNoNum") {
+        const alpha = updated.vehicleNoABC.trim();
+        const numeric = updated.vehicleNoNum.trim();
+        updated.licensePlate = alpha || numeric
+          ? `${alpha}${alpha && numeric ? "-" : ""}${numeric}`
+          : "";
+      }
+
+      return updated;
+    });
+  }, []);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -250,7 +263,7 @@ export default function AddVehicleForm({
       <div className="w-full">
 
         {/* Heading */}
-        <p className="text-[1ypx] font-semibold text-black mb-5">
+        <p className="text-[12px] font-semibold text-black mb-5">
           Please provide details below!
         </p>
 

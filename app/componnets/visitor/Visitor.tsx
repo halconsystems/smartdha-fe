@@ -89,7 +89,7 @@ const Visitor = () => {
   // Handle edit
   const handleEdit = (item: VisitorPass) => {
     localStorage.setItem('editVisitorData', JSON.stringify({ id: item.id }));
-    router.push('/visitor/add-visitor');
+    router.push('/visitor/edit-visitor');
   };
 
   // Handle delete
@@ -149,7 +149,10 @@ const Visitor = () => {
       />
       <div className="flex justify-end mb-6">
         <button
-          onClick={() => router.push("/visitor/add-visitor-quick")}
+          onClick={() => {
+            localStorage.removeItem('editVisitorData');
+            router.push("/visitor/add-visitor-quick");
+          }}
           className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                      text-white text-sm font-semibold px-4 py-2 rounded-xl
                      hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
@@ -279,13 +282,13 @@ const Visitor = () => {
                     <div className="flex justify-center gap-3">
                       <button
                         onClick={() => handleEdit(item)}
-                        className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200"
+                        className="w-8 h-8 p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"
                       >
                         <SvgIcon name="Edit-Icon" size={14} />
                       </button>
                       <button
                         onClick={() => handleDelete(item)}
-                        className="p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200"
+                        className="w-8 h-8 p-2 rounded-full bg-red-100 text-red-600 hover:bg-red-200 flex items-center justify-center"
                       >
                        <SvgIcon name="delete-icon" size={14} />
                       </button>

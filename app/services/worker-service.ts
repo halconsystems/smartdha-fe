@@ -26,7 +26,6 @@ interface WorkerData {
 export class WorkerService {
   // Create new worker
   async createWorker(formData: FormData): Promise<ApiResponse<WorkerData>> {
-    debugger;
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.WORKERS.CREATE}`, {
       method: 'POST',
       headers: {
@@ -75,7 +74,6 @@ export class WorkerService {
 
   // Get all workers
   async getAllWorkers(query?: any): Promise<ApiResponse<WorkerData[]>> {
-    debugger;
     const response = await fetch(`${API_CONFIG.baseURL}${API_ENDPOINTS.WORKERS.LIST}`, {
       method: 'POST',
       headers: {

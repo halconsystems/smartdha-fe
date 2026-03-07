@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 type FormData = {
   fullName: string;
@@ -15,6 +15,7 @@ type FormData = {
 };
 
 const AddCommercialEmployeeForm: React.FC = () => {
+  const [isEditing, setIsEditing] = useState(false);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePreview, setProfilePreview] = useState<string | null>(null);
   const [serviceCardDocument, setServiceCardDocument] = useState<File | null>(null);
@@ -34,12 +35,41 @@ const AddCommercialEmployeeForm: React.FC = () => {
     serviceCardDocument: null,
   });
 
-  const handleInputChange = (
+  useEffect(() => {
+    const editData = localStorage.getItem("editCommercialEmployeeData");
+    if (!editData) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(editData) as {
+        name?: string;
+        email?: string;
+        phone?: string;
+        subCategory?: string;
+        employeerRegistrationNumber?: string;
+      };
+
+      setIsEditing(true);
+      setFormData((prev) => ({
+        ...prev,
+        fullName: parsed.name ?? prev.fullName,
+        emailAddress: parsed.email ?? prev.emailAddress,
+        cellNumber: parsed.phone ?? prev.cellNumber,
+        subCategory: parsed.subCategory ?? prev.subCategory,
+        employerRegistrationNo: parsed.employeerRegistrationNumber ?? prev.employerRegistrationNo,
+      }));
+    } catch (error) {
+      console.error("Error parsing commercial employee edit data:", error);
+    }
+  }, []);
+
+  const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     if (e.target.files && e.target.files[0]) {
@@ -62,7 +92,13 @@ const AddCommercialEmployeeForm: React.FC = () => {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     console.log("Commercial Employee Form Data:", formData);
+    localStorage.removeItem("editCommercialEmployeeData");
     // Handle form submission here
+  };
+
+  const handleCancel = () => {
+    localStorage.removeItem("editCommercialEmployeeData");
+    window.history.back();
   };
 
   const categories: string[] = ["Resident", "Commercial"];
@@ -75,14 +111,14 @@ const AddCommercialEmployeeForm: React.FC = () => {
   ];
 
   // Reusable field box
-  const FieldBox = ({ children }: { children: React.ReactNode }) => (
+  const FieldBox = useCallback(({ children }: { children: React.ReactNode }) => (
     <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 relative">
       {children}
     </div>
-  );
+  ), []);
 
   // Reusable label
-  const FieldLabel = ({
+  const FieldLabel = useCallback(({
     text,
     required = false,
     green = true,
@@ -94,10 +130,10 @@ const AddCommercialEmployeeForm: React.FC = () => {
     <label className={`block text-xs font-semibold mb-1.5 ${green ? "text-[#30B33D]" : "text-gray-700"}`}>
       {text} {required && <span className="text-red-500">*</span>}
     </label>
-  );
+  ), []);
 
   // Reusable input
-  const TextInput = ({
+  const TextInput = useCallback(({
     name,
     value,
     placeholder,
@@ -119,7 +155,7 @@ const AddCommercialEmployeeForm: React.FC = () => {
       required={required}
       className="w-full text-sm text-gray-700 placeholder-gray-400 outline-none bg-transparent"
     />
-  );
+  ), [handleInputChange]);
 
   return (
     <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
@@ -127,7 +163,9 @@ const AddCommercialEmployeeForm: React.FC = () => {
 
         {/* Header */}
         <div className="mb-6">
-          <p className="text-lg font-semibold text-black">Please provide commercial employee details below!</p>
+          <p className="text-lg font-semibold text-black">
+            {isEditing ? "Edit commercial employee details" : "Please provide commercial employee details below!"}
+          </p>
         </div>
 
         {/* Form */}
@@ -385,7 +423,7 @@ const AddCommercialEmployeeForm: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={handleCancel}
               className="py-3 rounded-xl bg-white text-[#30B33D] text-[15px] font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition"
             >
               Cancel
@@ -394,7 +432,7 @@ const AddCommercialEmployeeForm: React.FC = () => {
               type="submit"
               className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
             >
-              Add
+              {isEditing ? "Update" : "Add"}
             </button>
           </div>
         </form>

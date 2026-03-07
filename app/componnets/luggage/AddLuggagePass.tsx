@@ -148,7 +148,19 @@ const AddLuggagePass = () => {
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
       const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
+      setFormData((prev) => {
+        const updated = { ...prev, [name]: value };
+
+        if (name === "vehicleNoAlpha" || name === "vehicleNoNumeric") {
+          const alpha = updated.vehicleNoAlpha.trim();
+          const numeric = updated.vehicleNoNumeric.trim();
+          updated.licensePlate = alpha || numeric
+            ? `${alpha}${alpha && numeric ? "-" : ""}${numeric}`
+            : "";
+        }
+
+        return updated;
+      });
     },
     []
   );
@@ -174,7 +186,7 @@ const AddLuggagePass = () => {
         id: editId,
         name: formData.fullName,
         cnic: formData.cnicNo,
-        vehicleLicensePlate: formData.licensePlate || undefined,
+        vehicleLicensePlate: vehicleLicensePlate || undefined,
         vehicleLicenseNo: formData.vehicleNoNumeric ? parseInt(formData.vehicleNoNumeric) : undefined,
         description: formData.description || undefined,
         validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
@@ -182,7 +194,7 @@ const AddLuggagePass = () => {
       } : {
         name: formData.fullName,
         cnic: formData.cnicNo,
-        vehicleLicensePlate: formData.licensePlate || undefined,
+        vehicleLicensePlate: vehicleLicensePlate || undefined,
         vehicleLicenseNo: formData.vehicleNoNumeric ? parseInt(formData.vehicleNoNumeric) : undefined,
         description: formData.description || undefined,
         validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,
@@ -195,7 +207,7 @@ const AddLuggagePass = () => {
         const updateData = {
           name: formData.fullName,
           cnic: formData.cnicNo,
-          vehicleLicensePlate: formData.licensePlate || undefined,
+          vehicleLicensePlate: vehicleLicensePlate || undefined,
           vehicleLicenseNo: formData.vehicleNoNumeric ? parseInt(formData.vehicleNoNumeric) : undefined,
           description: formData.description || undefined,
           validFrom: formData.validityDate ? new Date(formData.validityDate).toISOString() : undefined,

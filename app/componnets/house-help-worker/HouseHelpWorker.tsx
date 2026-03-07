@@ -21,6 +21,11 @@ const HouseHelpWorker: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  const handleEdit = (worker: HouseHelpWorkerType) => {
+    localStorage.setItem("editHouseHelpWorkerData", JSON.stringify(worker));
+    router.push("/residents/add-house-help-worker");
+  };
+
   // Mock data
   const workers: HouseHelpWorkerType[] = [
     {
@@ -71,7 +76,10 @@ const HouseHelpWorker: React.FC = () => {
     <div>
       <div className="flex justify-end mb-6">
         <button
-          onClick={() => router.push("/residents/add-house-help-worker")}
+          onClick={() => {
+            localStorage.removeItem("editHouseHelpWorkerData");
+            router.push("/residents/add-house-help-worker");
+          }}
           className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                    text-white text-sm font-semibold px-4 py-2 rounded-xl
                    hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
@@ -136,7 +144,10 @@ const HouseHelpWorker: React.FC = () => {
                   <td className="px-4 py-3 text-sm">{worker.subCategory}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-3">
-                      <button className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200">
+                      <button
+                        onClick={() => handleEdit(worker)}
+                        className="w-8 h-8 p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"
+                      >
                         <SvgIcon name="Edit-Icon" size={14} />
                       </button>
                     </div>

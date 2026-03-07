@@ -204,7 +204,6 @@ const AddWorkerForm: React.FC = () => {
     setSuccess(null);
 
     try {
-      debugger;
       // Create FormData for API (supports file uploads)
       const formDataToSend = new FormData();
       
@@ -923,7 +922,7 @@ const AddWorkerForm: React.FC = () => {
               disabled={loading}
               className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Adding Worker..." : "Add Worker"}
+              {loading ? (isEditing ? "Updating Worker..." : "Adding Worker...") : (isEditing ? "Update Worker" : "Add Worker")}
             </button>
           </div>
         </form>

@@ -1,8 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import SvgIcon from "./SvgIcon";
-import Visitor from "../visitor/Visitor";
 // import { Search } from "lucide-react";
 
 // ─── Route label map ─────────────────────────────────────────────────────────
@@ -12,14 +11,15 @@ const routeLabels: Record<string, string> = {
   "/setup": "Setup",
   "/residents": "Member Type",
   "/vehicle": "Vehicle",
-  "/visitor-pass": "Visitor Pass",
+  "/visitor": "Visitor Pass",
   "/worker": "Worker",
-  "/luggage-pass": "Luggage Pass",
+  "/luggage": "Luggage Pass",
   "/properties": "Properties",
   "/residents/add-educational-visitor": "Add Educational Visitor",
   "/residents/add-resident": "Add Resident",
   "/vehicle/add-vehicle": "Add Vehicle",
-  "/visitor-pass/add-visitor": "Add Visitor Pass",
+  "/visitor/add-visitor-quick": "Add Visitor Pass",
+  "/visitor/edit-visitor": "Edit Visitor Pass",
   "/worker/add-worker": "Add Worker",
   "/residents/add-house-help-worker": "Add House Help Worker",
   "/residents/add-visitor": "Add Visitor",
@@ -48,14 +48,29 @@ function getPageLabel(pathname: string): string {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function Navbar() {
+  const router = useRouter();
   const pathname = usePathname();
   const pageLabel = getPageLabel(pathname);
+  const pathSegments = pathname.split("/").filter(Boolean);
+  const parentPath = `/${pathSegments.slice(0, -1).join("/")}`;
+  const showBackButton = pathSegments.length > 1;
 
   return (
     <div className="flex items-center justify-between px-6 h-[64px] bg-transparent w-full">
 
       {/* ── LEFT: Dynamic page name ── */}
-      <div className="flex items-center gap-3">
+       <div className="flex items-center gap-3">
+        {showBackButton && (
+          <button
+            type="button"
+            onClick={() => router.push(parentPath)}
+            className="w-8 h-8 flex items-center justify-center mt-1"
+            aria-label={`Back to ${getPageLabel(parentPath)}`}
+            title={`Back to ${getPageLabel(parentPath)}`}
+          >
+            <img src="/icons/Back.svg" alt="" />
+          </button>
+        )}
         <h1 className="text-[32px] font-semibold text-gray-800 tracking-tight">
           {pageLabel}
         </h1>

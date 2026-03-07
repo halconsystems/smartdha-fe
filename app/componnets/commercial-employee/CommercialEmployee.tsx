@@ -22,6 +22,11 @@ const CommercialEmployee: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  const handleEdit = (employee: CommercialEmployeeType) => {
+    localStorage.setItem("editCommercialEmployeeData", JSON.stringify(employee));
+    router.push("/residents/add-commercial-employee");
+  };
+
   // Mock data
   const employees: CommercialEmployeeType[] = [
   {
@@ -78,7 +83,10 @@ const CommercialEmployee: React.FC = () => {
     <div>
       <div className="flex justify-end mb-6">
         <button
-          onClick={() => router.push("/residents/add-commercial-employee")}
+          onClick={() => {
+            localStorage.removeItem("editCommercialEmployeeData");
+            router.push("/residents/add-commercial-employee");
+          }}
           className="bg-gradient-to-t from-[rgba(48,179,61,0.7)] to-[rgba(48,179,61,1)] 
                    text-white text-sm font-semibold px-4 py-2 rounded-xl
                    hover:from-[rgba(48,179,61,0.7)] hover:to-[rgba(48,179,61,1)] 
@@ -145,7 +153,10 @@ const CommercialEmployee: React.FC = () => {
                   <td className="px-4 py-3 text-sm">{employee.employeerRegistrationNumber}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-3">
-                      <button className="p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200">
+                      <button
+                        onClick={() => handleEdit(employee)}
+                        className="w-8 h-8 p-2 rounded-full bg-green-100 text-green-600 hover:bg-green-200 flex items-center justify-center"
+                      >
                         <SvgIcon name="Edit-Icon" size={14} />
                       </button>
                     </div>
