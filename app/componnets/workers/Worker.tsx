@@ -14,6 +14,7 @@ import { JobType, WorkerCardDeliveryType } from "../../types/api";
 /* ================= TYPES ================= */
 
 type WorkerType = {
+  workerId: string;
   id: number;
   name: string;
   jobType: string;
@@ -64,17 +65,19 @@ const Worker = () => {
       const userId = user?.id;
       
       const response = await workerService.getAllWorkers({ id: userId });
-      // setApiResponse(response); // Debug output removed
       if (response.success) {
-        const fetched = Array.isArray(response.data?.items)
-          ? response.data.items
-          : Array.isArray(response.data)
-          ? response.data
+        // Accept both array and object with items property
+        const dataAny = response.data as any;
+        const fetched = Array.isArray(dataAny)
+          ? dataAny
+          : Array.isArray(dataAny?.items)
+          ? dataAny.items
           : [];
 
         // Map API response to display format
         const mapped = fetched.map((worker: any) => ({
           workerId: worker.workerId || '', // Use workerId from API
+          id: worker.id || 0,
           name: worker.name || "",
           jobType: getJobTypeLabel(worker.jobType),
           phone: worker.phoneNo || "",

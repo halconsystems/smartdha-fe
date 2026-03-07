@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
+import SuccessModal from "../shared/SuccessModal";
+import { useRouter } from "next/navigation";
+import { API_CONFIG, API_ENDPOINTS } from "../../lib/api-config";
 
 type FormData = {
   category: string;
@@ -20,6 +23,7 @@ type FormData = {
 };
 
 const AddProperty: React.FC = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState<FormData>({
     category: "",
     type: "",
@@ -75,17 +79,16 @@ const AddProperty: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [apiResponse, setApiResponse] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(null);
-    setApiResponse(null);
 
     try {
-      // Always use FormData for this API
+      // Build FormData to match the working curl request
       const form = new FormData();
       form.append('Category', formData.category);
       form.append('Type', formData.type);
@@ -94,55 +97,54 @@ const AddProperty: React.FC = () => {
       form.append('Khayaban', formData.khayaban);
       form.append('Floor', formData.floor);
       form.append('StreetNo', formData.laneStreetNo);
-      form.append('PossessionType', formData.possessionType);
       form.append('PlotNo', formData.plotNoNumeric);
       form.append('Plot', formData.plotNoAlpha);
+      form.append('PossessionType', formData.possessionType);
       // If you want to send combined plot, add as needed
       // form.append('PlotNoCombined', formData.plotNoCombined);
-      form.append('Status', formData.status);
+      // Status is not in Postman, so do not send unless required
+      // form.append('Status', formData.status);
       if (formData.proofOfPossession) {
-        form.append('proofOfPossession', formData.proofOfPossession);
+        form.append('ProofOfPossessionImage', formData.proofOfPossession);
       }
       if (formData.utilityBill) {
-        form.append('utilityBill', formData.utilityBill);
+        form.append('UtilityBillAttachment', formData.utilityBill);
       }
 
-      const response = await fetch('https://dfpwebp.dhakarachi.org/api/smartdha/residenceproperty/create', {
+      // Replace with your actual token logic
+      // Try all possible token keys used in the app
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('authToken') || '';
+      const authHeader = token ? `Bearer ${token}` : '';
+      const fetchOptions = {
         method: 'POST',
         headers: {
-          // Do NOT set Content-Type, browser will set it for FormData
+          ...(authHeader ? { Authorization: authHeader } : {}),
         },
         body: form,
-      });
+      };
+
+      const url = `${API_CONFIG.baseURL}${API_ENDPOINTS.PROPERTIES.CREATE}`;
+      const response = await fetch(url, fetchOptions);
       const rawText = await response.text();
       let result;
+      let parsed = false;
       try {
         result = JSON.parse(rawText);
-        setApiResponse(JSON.stringify(result, null, 2));
+        parsed = true;
       } catch (jsonErr) {
-        setError(
-          'Failed to parse API response as JSON. Raw response: ' + rawText
-        );
-        setApiResponse(rawText);
-        return;
+        // ignore
       }
-      if (response.ok && (result.success || result.succeeded)) {
-        // Show actual API response message if available
-        let msg = '';
-        if (result.data && result.data.message) {
-          msg = result.data.message;
-        } else if (result.message) {
-          msg = result.message;
-        } else {
-          msg = JSON.stringify(result);
-        }
-        setSuccess(msg);
+      if (response.ok && parsed && (result.success || result.succeeded)) {
+        setSuccess("Property Created Successfully!");
+        setShowSuccessModal(true);
       } else {
         let errorMsg = 'Failed to add property.';
-        if (result.errors && Array.isArray(result.errors) && result.errors.length > 0) {
+        if (parsed && result && result.errors && Array.isArray(result.errors) && result.errors.length > 0) {
           errorMsg += ' ' + result.errors[0];
-        } else if (result.message) {
+        } else if (parsed && result && result.message) {
           errorMsg += ' ' + result.message;
+        } else if (!parsed) {
+          errorMsg += ' Raw response: ' + rawText;
         } else {
           errorMsg += ' ' + JSON.stringify(result);
         }
@@ -150,6 +152,7 @@ const AddProperty: React.FC = () => {
       }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred');
+      console.error('Request error:', err);
     } finally {
       setLoading(false);
     }
@@ -270,17 +273,16 @@ const AddProperty: React.FC = () => {
             {error}
           </div>
         )}
-        {success && (
-          <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg">
-            {success}
-          </div>
-        )}
-        {apiResponse && (
-          <div className="mb-4 p-3 bg-gray-50 border border-gray-300 rounded-lg text-xs text-gray-800">
-            <strong>API Response:</strong>
-            <pre className="whitespace-pre-wrap break-all">{apiResponse}</pre>
-          </div>
-        )}
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={showSuccessModal}
+          onClose={() => {
+            setShowSuccessModal(false);
+            router.push("/properties");
+          }}
+          title="Property Created Successfully!"
+          message="The property has been added to the system successfully."
+        />
         <form onSubmit={handleSubmit}>
           {/* Row 1: Category + Type */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -528,38 +530,34 @@ const AddProperty: React.FC = () => {
             </FieldBox>
           </div>
 
-          {/* Row 5: Plot No Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <FieldBox>
-                <FieldLabel text="Plot No." required />
-                <TextInput
-                  name="plotNoNumeric"
-                  value={formData.plotNoNumeric}
-                  placeholder="123 Only"
-                  required
-                />
-              </FieldBox>
-
-              <FieldBox>
-                <FieldLabel text="Plot No." required />
-                <TextInput
-                  name="plotNoAlpha"
-                  value={formData.plotNoAlpha}
-                  placeholder="ABC Only"
-                />
-              </FieldBox>
-            </div>
-            <div>
-              <FieldBox>
-                <FieldLabel text="Plot No." required />
-                <TextInput
-                  name="plotNoCombined"
-                  value={formData.plotNoCombined}
-                  placeholder="55-C"
-                />
-              </FieldBox>
-            </div>
+          {/* Row 5: Plot No Fields (flattened) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <FieldBox>
+              <FieldLabel text="Plot No. (Numeric)" required />
+              <TextInput
+                name="plotNoNumeric"
+                value={formData.plotNoNumeric}
+                placeholder="123 Only"
+                required
+              />
+            </FieldBox>
+            <FieldBox>
+              <FieldLabel text="Plot No. (Alpha)" required />
+              <TextInput
+                name="plotNoAlpha"
+                value={formData.plotNoAlpha}
+                placeholder="ABC Only"
+                required
+              />
+            </FieldBox>
+            <FieldBox>
+              <FieldLabel text="Plot No. (Combined)" />
+              <TextInput
+                name="plotNoCombined"
+                value={formData.plotNoCombined}
+                placeholder="55-C"
+              />
+            </FieldBox>
           </div>
 
           {/* Row 6: Proof of Possession + Utility Bill */}
@@ -672,17 +670,6 @@ const AddProperty: React.FC = () => {
             </div>
           </div>
 
-          {/* Debug: Show FormData body */}
-          <div className="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg text-xs text-gray-700">
-            <strong>FormData Body Preview:</strong>
-            <ul className="mt-1">
-              {Object.entries(formData).map(([key, value]) => (
-                <li key={key}>
-                  <span className="font-semibold">{key}:</span> {value instanceof File ? value.name : String(value)}
-                </li>
-              ))}
-            </ul>
-          </div>
           {/* Submit Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <button
