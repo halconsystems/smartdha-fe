@@ -1,11 +1,12 @@
 "use client";
-import LeftSidebar from "../componnets/shared/LeftSidebar";
-import Navbar from "../componnets/shared/Navbar";
-import RightSidebar from "../componnets/shared/RightSidebar";
-import React from "react";
-import AddPickupLocation from "../componnets/setup/AddPickUpLocation/AddPickupLocation";
 
-export default function SetupPage() {
+import React from "react";
+import LeftSidebar from "../../componnets/shared/LeftSidebar";
+import Navbar from "../../componnets/shared/Navbar";
+import RightSidebar from "../../componnets/shared/RightSidebar";
+import AddPickupLocationForm from "../../componnets/setup/AddPickUpLocation/AddPickupLocationForm";
+
+const Page = () => {
   return (
     <div className="flex min-h-screen bg-[#F3F6F9]">
       <div className="w-[270px] min-h-screen border-r border-[#E5E5E5] bg-white">
@@ -13,9 +14,10 @@ export default function SetupPage() {
       </div>
 
       <div className="flex-1 flex flex-col">
-        <Navbar pageName={"Pickup Locations"} />
+        <Navbar pageName={"Edit Pickup Location"} />
+
         <div className="flex-1 p-8">
-          <AddPickupLocation />
+          <AddPickupLocationForm mode="edit" />
         </div>
       </div>
 
@@ -24,4 +26,6 @@ export default function SetupPage() {
       </div>
     </div>
   );
-}
+};
+
+export default Page;

@@ -12,3 +12,18 @@ body {
 .my-button {
   @apply px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600;
 }
+
+.pagination {
+  @apply w-10 h-10 flex items-center justify-center rounded bg-transparent border border-[#30B33D] text-green-600;
+}
+
+.activePage {
+  @apply !bg-[#30B33D] !text-white;
+}
+
+.recharts-tooltip-wrapper div ul li span:nth-child(3){
+  color:black !important;
+}
+.recharts-tooltip-wrapper div ul li span:nth-child(1){
+  color:#30B33D !important;
+}

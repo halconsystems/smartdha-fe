@@ -282,7 +282,7 @@ const LuggagePass = () => {
         {/* Table Body */}
         {!loading && (
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-          <table className="min-w-full" style={{ minWidth: '900px' }}>
+          <table className="min-w-full" style={{ minWidth: '900px', width: '100%'}}>
             <thead className="bg-gray-50 text-xs">
               <tr>
                 <>

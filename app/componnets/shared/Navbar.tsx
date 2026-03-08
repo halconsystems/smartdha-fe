@@ -47,10 +47,10 @@ function getPageLabel(pathname: string): string {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function Navbar() {
+export default function Navbar({pageName = null} : {pageName?: any}) {
   const router = useRouter();
   const pathname = usePathname();
-  const pageLabel = getPageLabel(pathname);
+  const pageLabel = pageName || getPageLabel(pathname);
   const pathSegments = pathname.split("/").filter(Boolean);
   const parentPath = `/${pathSegments.slice(0, -1).join("/")}`;
   const showBackButton = pathSegments.length > 1;

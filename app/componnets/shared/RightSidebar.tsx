@@ -166,13 +166,13 @@ export default function RightSidebar() {
         <div className="rounded-xl p-4 bg-[#F9FAFB] flex flex-col items-center shadow-[0_0_15px_rgba(0,0,0,0.25)]">
 
           {/* Logo */}
-          <div className="shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-full px-2.5 py-1.5">
+          <div className="shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-full p-1.5 ">
             <Image
               src="/icons/Image.png"
               alt="Profile Picture"
               width={80}
               height={80}
-              className='mb-2 flex-shrink-0'
+              className='flex-shrink-0 object-cover rounded-full'
             />
           </div>
 
