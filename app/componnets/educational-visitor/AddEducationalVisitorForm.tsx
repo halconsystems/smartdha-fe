@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { fetchMemberById } from "../../services/member-service";
 import { registerNonMember } from "@/app/lib/api-client";
 import SuccessModal from "../shared/SuccessModal";
 import Snackbar from "../shared/Snackbar";
@@ -44,42 +45,70 @@ const AddEducationalVisitorForm: React.FC = () => {
     cnic: "",
   });
 
+  // --- CATEGORY/SUBCATEGORY STATE ---
+  // (Removed duplicate Category and SubCategory type declarations)
+  // (Keep only the useState declarations below, remove this block)
+
+  // (Removed duplicate fetch categories useEffect)
+
+  // --- CATEGORY/SUBCATEGORY STATE ---
+  type Category = { label: string; uuid: string; raw?: any };
+  type SubCategory = { label: string; uuid: string };
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+
+  // Prefill logic
   useEffect(() => {
     const editData = localStorage.getItem("editEducationalVisitorData");
-    if (!editData) {
-      return;
-    }
-
+    if (!editData) return;
     try {
-      const parsed = JSON.parse(editData) as {
-        name?: string;
-        email?: string;
-        phone?: string;
-        subCategory?: string;
-        institute?: string;
-        vehicleInfo?: string;
-      };
-
-      const [platePart = "", numberPart = ""] = (parsed.vehicleInfo ?? "").split("-").map((part) => part.trim());
-      const vehicleNoAlphabetic = platePart.split(" ").pop() ?? "";
-
-      setIsEditing(true);
-      setFormData((prev) => ({
-        ...prev,
-        fullName: parsed.name ?? prev.fullName,
-        emailAddress: parsed.email ?? prev.emailAddress,
-        cellNumber: parsed.phone ?? prev.cellNumber,
-        subCategory: parsed.subCategory ?? prev.subCategory,
-        selectInstitute: parsed.institute ?? prev.selectInstitute,
-        vehicleNoAlphabetic: vehicleNoAlphabetic || prev.vehicleNoAlphabetic,
-        vehicleNoNumeric: numberPart || prev.vehicleNoNumeric,
-        licensePlate: parsed.vehicleInfo ?? prev.licensePlate,
-        cnic: prev.cnic,
-      }));
+      const parsed = JSON.parse(editData);
+      if (parsed && parsed.id) {
+        setIsEditing(true);
+        fetchMemberById(parsed.id)
+          .then(async (member) => {
+            // Find category UUID by name
+            const categoryObj = categories.find(cat => cat.label === member.category);
+            const categoryId = categoryObj ? categoryObj.uuid : "";
+            if (categoryId) {
+              const { apiClient } = await import("@/app/lib/api-client");
+              apiClient.get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${categoryId}`)
+                .then((subRes: any) => {
+                  const arr = Array.isArray(subRes) ? subRes : (subRes as any[]);
+                  setSubCategories(
+                    arr.map((item: any) => ({
+                      label: item.displayName || item.name,
+                      uuid: item.id,
+                    }))
+                  );
+                  const subCatObj = arr.find((sub: any) => (sub.displayName || sub.name) === member.subcategory);
+                  // Parse vehicle info if present
+                  const [platePart = "", numberPart = ""] = (member.vehicleInfo ?? "").split("-").map((part: string) => part.trim());
+                  const vehicleNoAlphabetic = platePart.split(" ").pop() ?? "";
+                  setFormData((prev) => ({
+                    ...prev,
+                    fullName: member.name ?? prev.fullName,
+                    emailAddress: member.email ?? prev.emailAddress,
+                    cellNumber: member.phone ?? prev.cellNumber,
+                    category: categoryId,
+                    subCategory: subCatObj ? subCatObj.id : "",
+                    selectInstitute: member.instituteName ?? member.institute ?? prev.selectInstitute,
+                    vehicleNoAlphabetic: vehicleNoAlphabetic || prev.vehicleNoAlphabetic,
+                    vehicleNoNumeric: numberPart || prev.vehicleNoNumeric,
+                    licensePlate: member.vehicleInfo ?? prev.licensePlate,
+                    cnic: member.cnic ?? prev.cnic,
+                  }));
+                });
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to fetch member by id:", error);
+          });
+      }
     } catch (error) {
       console.error("Error parsing educational visitor edit data:", error);
     }
-  }, []);
+  }, [categories]);
 
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -132,11 +161,26 @@ const AddEducationalVisitorForm: React.FC = () => {
       fd.append("SubCategoryId", formData.subCategory);
       fd.append("InstituteName", formData.selectInstitute);
       fd.append("VehicleNumber", formData.licensePlate);
-      fd.append("CNIC", formData.cnic); // Use user input
+      fd.append("CNIC", formData.cnic);
       if (formData.profilePicture) fd.append("ProfilePicture", formData.profilePicture);
 
+      let isEdit = isEditing;
+      let editId = null;
+      if (isEdit) {
+        const editData = localStorage.getItem("editEducationalVisitorData");
+        if (editData) {
+          const parsed = JSON.parse(editData);
+          if (parsed && parsed.id) {
+            editId = parsed.id;
+            fd.append("Id", editId);
+          }
+        }
+      }
+
       // Generate cURL command
-      let curl = 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/register-nonmember \\\n  -H "Content-Type: multipart/form-data"';
+      let curl = isEdit
+        ? 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type \\\n  -H "Content-Type: multipart/form-data"'
+        : 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/register-nonmember \\\n  -H "Content-Type: multipart/form-data"';
       const fields = [
         ["Name", formData.fullName],
         ["Password", formData.password],
@@ -146,8 +190,9 @@ const AddEducationalVisitorForm: React.FC = () => {
         ["SubCategoryId", formData.subCategory],
         ["InstituteName", formData.selectInstitute],
         ["VehicleNumber", formData.licensePlate],
-        ["CNIC", formData.cnic], // Hardcoded CNIC in cURL
+        ["CNIC", formData.cnic],
       ];
+      if (isEdit && editId) fields.push(["Id", editId]);
       fields.forEach(([key, value]) => {
         if (value) curl += ` \\\n  -F \"${key}=${value}\"`;
       });
@@ -156,23 +201,51 @@ const AddEducationalVisitorForm: React.FC = () => {
       }
       setCurlCommand(curl);
 
-      const response = await registerNonMember(fd);
-      // Try to extract a user-friendly message from the response
-      let message = "Registration successful.";
-      if (response && typeof response === "object") {
-        if (response.message) message = response.message;
-        else if (response.data && typeof response.data === "object" && response.data.message) message = response.data.message;
+      let headers: Record<string, string> = {};
+      if (typeof window !== "undefined") {
+        let token = localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+      }
+
+      let response;
+      if (isEdit && editId) {
+        response = await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type", {
+          method: "POST",
+          headers,
+          body: fd,
+        });
+      } else {
+        response = await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/register-nonmember", {
+          method: "POST",
+          body: fd,
+        });
+      }
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error || (isEdit ? "Failed to update educational visitor" : "Failed to register educational visitor"));
+      }
+      const data = await response.json();
+      let message = isEdit ? "Update successful!" : "Registration successful.";
+      if (isEdit) {
+        message = "Educational visitor updated successfully.";
+      } else {
+        message = "Educational visitor registered successfully.";
+      }
+      if (data && typeof data === "object") {
+        if (data.message) message = data.message;
+        else if (data.data && typeof data.data === "object" && data.data.message) message = data.data.message;
       }
       setShowSuccessModal(true);
       setSubmitStatus("success");
       setSnackbar({ open: true, message, type: "success" });
-      setCurlCommand(""); // Hide cURL block after success
+      setCurlCommand("");
       localStorage.removeItem("editEducationalVisitorData");
     } catch (err: any) {
-      // Try to extract a user-friendly error message
       let message = "An error occurred.";
-      if (err?.response?.data?.message) message = err.response.data.message;
-      else if (err?.message) message = err.message;
+      if (err?.message) message = err.message;
       setSubmitStatus("error");
       setSnackbar({ open: true, message, type: "error" });
     }
@@ -183,11 +256,7 @@ const AddEducationalVisitorForm: React.FC = () => {
     window.history.back();
   };
 
-  // Dynamic categories and subcategories logic
-  type Category = { label: string; uuid: string; raw?: any };
-  type SubCategory = { label: string; uuid: string };
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  // ...existing code...
 
   // Fetch categories on mount
   useEffect(() => {
@@ -303,39 +372,31 @@ const AddEducationalVisitorForm: React.FC = () => {
         {/* Form */}
         <form onSubmit={handleSubmit}>
 
+
           {/* Row 1: Full Name + Email Address */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Full Name" required />
               <TextInput name="fullName" value={formData.fullName} placeholder="Full Name here" required />
             </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Email Address" required />
               <TextInput name="emailAddress" value={formData.emailAddress} placeholder="Email Address here" type="email" required />
             </FieldBox>
           </div>
 
-          {/* Row 2: Password + Cell Number */}
+          {/* Row 2: Cell Number + CNIC */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
-              <FieldLabel text="Password" required />
-              <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
-            </FieldBox>
-
-            <FieldBox>
-              <FieldLabel text="Add Cell Number" required />
+              <FieldLabel text="Cell Number" required />
               <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
             </FieldBox>
-          </div>
-
-          {/* Row 2.5: CNIC */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="CNIC" required />
               <TextInput name="cnic" value={formData.cnic} placeholder="Enter CNIC" required />
             </FieldBox>
           </div>
+
 
           {/* Row 3: Category + Sub-Category */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -375,7 +436,6 @@ const AddEducationalVisitorForm: React.FC = () => {
                 </div>
               )}
             </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Sub-Category" />
               <div
@@ -562,8 +622,8 @@ const AddEducationalVisitorForm: React.FC = () => {
               setCurlCommand("");
               router.push("/residents");
             }}
-            title="Registration Successful"
-            message="Educational visitor registered successfully."
+            title={isEditing ? "Update Successful" : "Registration Successful"}
+            message={isEditing ? "Educational visitor updated successfully." : "Educational visitor registered successfully."}
           />
         </form>
       </div>

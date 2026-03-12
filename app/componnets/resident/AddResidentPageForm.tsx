@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { fetchMemberById } from "../../services/member-service";
 import SuccessModal from "../shared/SuccessModal";
 import Snackbar from "../shared/Snackbar";
 import { registerNonMember } from "@/app/lib/api-client";
@@ -71,39 +72,176 @@ const AddResidentPageForm: React.FC<{
     cnic: "",
   });
 
+
+  // Move these declarations above the useEffect that uses them
+  type Category = { label: string; uuid: string; raw?: any };
+  type SubCategory = { label: string; uuid: string };
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  const phases = [
+    { label: "Phase 1", uuid: "7cc92216-4327-4ac0-baa0-8a9ed7647e9f" },
+    { label: "Phase 2", uuid: "30858a95-6a99-4822-963e-253c92adbdc3" },
+    { label: "Phase 3", uuid: "613ece0b-1e3f-4ce5-b781-b595d4b8ebd5" },
+    { label: "Phase 4", uuid: "cc208f88-558e-4ac0-be9d-c43f16f7b72b" },
+    { label: "Phase 5", uuid: "d5b82c1f-ff55-4621-9dec-4175c6a489d6" },
+    { label: "Phase 6", uuid: "b881af67-4f27-49d8-a4e1-e591fd060329" },
+    { label: "Phase 7", uuid: "e6f5ba71-4fa8-41b5-a670-52beb235597f" },
+    { label: "Phase 8", uuid: "085c320e-5e9e-43e2-871e-6c06691c3968" }
+  ];
+  const zones = [
+    { label: "Zone-B", uuid: "3b87cdef-8531-459a-acb6-12e054d099cc" },
+    { label: "Zone 1", uuid: "c7ce1457-0065-4b42-a9a5-38590f82acfe" },
+    { label: "Zone-A", uuid: "f7224696-af90-4939-8580-3e208f4659e1" },
+    { label: "Zone 2", uuid: "158356f9-a03a-4adc-97ba-6a6ab3c59786" }
+    // Add more as needed
+  ];
+
+  // Prefill logic for edit mode: only run once per edit session
+  const [prefilled, setPrefilled] = useState(false);
   useEffect(() => {
+    if (prefilled) return;
     const editData = localStorage.getItem("editResidentData");
-    if (!editData) {
-      return;
-    }
-
+    if (!editData || categories.length === 0) return;
     try {
-      const parsed = JSON.parse(editData) as Partial<FormData>;
-      setIsEditing(true);
-      setFormData((prev) => ({
-        ...prev,
-        fullName: parsed.fullName ?? prev.fullName,
-        emailAddress: parsed.emailAddress ?? prev.emailAddress,
-        cellNumber: parsed.cellNumber ?? prev.cellNumber,
-        category: parsed.category ?? prev.category,
-        subCategory: parsed.subCategory ?? prev.subCategory,
-        phase: parsed.phase ?? prev.phase,
-        zone: parsed.zone ?? prev.zone,
-        khayaban: parsed.khayaban ?? prev.khayaban,
-        laneStreetNo: parsed.laneStreetNo ?? prev.laneStreetNo,
-        floor: parsed.floor ?? prev.floor,
-        plotNoNumeric: parsed.plotNoNumeric ?? prev.plotNoNumeric,
-        plotNoAlphabetic: parsed.plotNoAlphabetic ?? prev.plotNoAlphabetic,
-        plotNoAlphaNumeric: parsed.plotNoAlphaNumeric ?? prev.plotNoAlphaNumeric,
-        cnic: parsed.cnic ?? prev.cnic,
-      }));
+      const parsed = JSON.parse(editData);
+      if (parsed && parsed.id) {
+        setIsEditing(true);
+        fetchMemberById(parsed.id)
+          .then((member) => {
+            // Map category, phase, and zone to UUIDs
+            const categoryObj = categories.find(cat => cat.label === member.category);
+            const categoryId = categoryObj ? categoryObj.uuid : "";
+            const phaseObj = phases.find(ph => ph.label === member.phase);
+            const phaseId = phaseObj ? phaseObj.uuid : "";
+            const zoneObj = zones.find(z => z.label === member.zone);
+            const zoneId = zoneObj ? zoneObj.uuid : "";
 
-      const selectedTab: Tab = parsed.category?.toLowerCase() === "commercial" ? "commercial" : "resident";
-      setActiveTab(selectedTab);
+            // Fetch subcategories for this category, then set subCategory
+            if (categoryId) {
+              import("@/app/lib/api-client").then(({ apiClient }) => {
+                apiClient.get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${categoryId}`)
+                  .then((subRes) => {
+                    const arr = Array.isArray(subRes) ? subRes : (subRes as any[]);
+                    const mappedSubs = arr.map((item: any) => ({
+                      label: item.displayName || item.name,
+                      uuid: item.id,
+                    }));
+                    setSubCategories(mappedSubs);
+                    const subCatObj = mappedSubs.find((sub) => sub.label === member.subcategory);
+                    setFormData((prev) => ({
+                      ...prev,
+                      fullName: member.name ?? prev.fullName,
+                      emailAddress: member.email ?? prev.emailAddress,
+                      cellNumber: member.phone ?? prev.cellNumber,
+                      category: categoryId,
+                      subCategory: subCatObj ? subCatObj.uuid : "",
+                      phase: phaseId || member.phase || prev.phase,
+                      zone: zoneId || member.zone || prev.zone,
+                      khayaban: member.khayaban ?? prev.khayaban,
+                      laneStreetNo: member.laneStreetNo ?? member.laneNo ?? prev.laneStreetNo,
+                      floor: member.floor ?? prev.floor,
+                      plotNoNumeric: member.plotNoNumeric ?? member.plotNo ?? prev.plotNoNumeric,
+                      plotNoAlphabetic: member.plotNoAlphabetic ?? prev.plotNoAlphabetic,
+                      plotNoAlphaNumeric: member.plotNoAlphaNumeric ?? prev.plotNoAlphaNumeric,
+                      cnic: member.cnic ?? prev.cnic,
+                    }));
+                    setPrefilled(true);
+                  });
+              });
+            } else {
+              // fallback: just prefill with names if UUID not found
+              setFormData((prev) => ({
+                ...prev,
+                fullName: member.name ?? prev.fullName,
+                emailAddress: member.email ?? prev.emailAddress,
+                cellNumber: member.phone ?? prev.cellNumber,
+                category: member.category ?? prev.category,
+                subCategory: member.subcategory ?? prev.subCategory,
+                phase: phaseId || member.phase || prev.phase,
+                zone: zoneId || member.zone || prev.zone,
+                khayaban: member.khayaban ?? prev.khayaban,
+                laneStreetNo: member.laneStreetNo ?? member.laneNo ?? prev.laneStreetNo,
+                floor: member.floor ?? prev.floor,
+                plotNoNumeric: member.plotNoNumeric ?? member.plotNo ?? prev.plotNoNumeric,
+                plotNoAlphabetic: member.plotNoAlphabetic ?? prev.plotNoAlphabetic,
+                plotNoAlphaNumeric: member.plotNoAlphaNumeric ?? prev.plotNoAlphaNumeric,
+                cnic: member.cnic ?? prev.cnic,
+              }));
+              setPrefilled(true);
+            }
+            const selectedTab: Tab = member.category?.toLowerCase() === "commercial" ? "commercial" : "resident";
+            setActiveTab(selectedTab);
+          })
+          .catch((error) => {
+            console.error("Failed to fetch member by id:", error);
+          });
+      }
     } catch (error) {
       console.error("Error parsing resident edit data:", error);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories, phases, zones, prefilled]);
+
+  useEffect(() => {
+    // Fetch categories on mount and set default category if not set (like AddOthersForm)
+    import("@/app/lib/api-client").then(({ apiClient }) => {
+      apiClient
+        .get("/api/nonmember/get-nonmember-category")
+        .then((res) => {
+          const arr = Array.isArray(res) ? res : (res as any[]);
+          if (Array.isArray(arr)) {
+            const mapped = arr.map((item: any) => ({
+              label: item.displayName || item.name,
+              uuid: item.id,
+              raw: item,
+            }));
+            setCategories(mapped);
+            // Set default category if not set and not editing
+            setFormData((prev) => {
+              if (!prev.category && mapped.length > 0 && !isEditing) {
+                return { ...prev, category: mapped[0].uuid };
+              }
+              return prev;
+            });
+          } else {
+            setCategories([]);
+          }
+        })
+        .catch(() => setCategories([]));
+    });
+  }, [isEditing]);
+
+  useEffect(() => {
+    // Fetch subcategories when category changes (like AddOthersForm)
+    if (formData.category) {
+      import("@/app/lib/api-client").then(({ apiClient }) => {
+        apiClient
+          .get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${formData.category}`)
+          .then((res) => {
+            const arr = Array.isArray(res) ? res : (res as any[]);
+            if (Array.isArray(arr)) {
+              const mapped = arr.map((item: any) => ({
+                label: item.displayName || item.name,
+                uuid: item.id,
+              }));
+              setSubCategories(mapped);
+              // Set default subcategory if not set
+              setFormData((prev) => {
+                if (!prev.subCategory && mapped.length > 0) {
+                  return { ...prev, subCategory: mapped[0].uuid };
+                }
+                return prev;
+              });
+            } else {
+              setSubCategories([]);
+            }
+          })
+          .catch(() => setSubCategories([]));
+      });
+    } else {
+      setSubCategories([]);
+    }
+  }, [formData.category]);
 
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -136,6 +274,9 @@ const AddResidentPageForm: React.FC<{
   const [curlCommand, setCurlCommand] = useState<string>("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; type: "success" | "error" | "info" }>({ open: false, message: "", type: "info" });
+  // Debug: Show FormData payload in UI before submit
+  const [formDataDebug, setFormDataDebug] = useState<any>(null);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitStatus(null);
@@ -159,8 +300,26 @@ const AddResidentPageForm: React.FC<{
       if (formData.utilityBill) fd.append("UtilityBill", formData.utilityBill);
       fd.append("CNIC", formData.cnic);
 
+      // If editing, add Id from localStorage
+      let isEdit = false;
+      const editData = localStorage.getItem("editResidentData");
+      if (editData) {
+        const parsed = JSON.parse(editData);
+        if (parsed && parsed.id) {
+          fd.append("Id", parsed.id);
+          isEdit = true;
+        }
+      }
+
+      // Debug: Extract FormData key-values for UI display
+      const debugObj: Record<string, any> = {};
+      fd.forEach((value, key) => {
+        debugObj[key] = value instanceof File ? value.name : value;
+      });
+      setFormDataDebug(debugObj);
+
       // Generate cURL command
-      let curl = 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/register-nonmember \\\n  -H "Content-Type: multipart/form-data"';
+      let curl = `curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/${isEdit ? "update-member-type" : "register-nonmember"} \\\n  -H "Content-Type: multipart/form-data"`;
       const fields = [
         ["Name", formData.fullName],
         ["Password", formData.password],
@@ -177,6 +336,7 @@ const AddResidentPageForm: React.FC<{
         ["PlotNoAlphabetic", formData.plotNoAlphabetic],
         ["PlotNoAlphaNumeric", formData.plotNoAlphaNumeric],
         ["CNIC", formData.cnic],
+        ["Id", isEdit && editData ? String(JSON.parse(editData).id) : ""],
       ];
       fields.forEach(([key, value]) => {
         if (value) curl += ` \\\n  -F \"${key}=${value}\"`;
@@ -192,14 +352,31 @@ const AddResidentPageForm: React.FC<{
       }
       setCurlCommand(curl);
 
-      await registerNonMember(fd);
+      if (isEdit) {
+        // Add Authorization header if token exists
+        let headers: Record<string, string> = {};
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+        await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type", {
+          method: "POST",
+          headers,
+          body: fd,
+        });
+      } else {
+        await registerNonMember(fd);
+      }
       setShowSuccessModal(true);
       setSubmitStatus("success");
-      setSnackbar({ open: true, message: "Registration successful!", type: "success" });
+      setSnackbar({ open: true, message: isEdit ? "Update successful!" : "Registration successful!", type: "success" });
       localStorage.removeItem("editResidentData");
     } catch (err: any) {
-      setSubmitStatus("error: " + (err.message || "Unknown error"));
-      setSnackbar({ open: true, message: err.message || "Unknown error", type: "error" });
+      let errorMsg = err?.message || "Unknown error";
+      setSubmitStatus("error: " + errorMsg);
+      setSnackbar({ open: true, message: errorMsg, type: "error" });
     }
   };
 
@@ -208,77 +385,6 @@ const AddResidentPageForm: React.FC<{
     window.history.back();
   };
 
-  // Dynamic categories and subcategories logic
-  type Category = { label: string; uuid: string; raw?: any };
-  type SubCategory = { label: string; uuid: string };
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
-
-  // Fetch categories on mount
-  useEffect(() => {
-    import("@/app/lib/api-client").then(({ apiClient }) => {
-      apiClient
-        .get("/api/nonmember/get-nonmember-category")
-        .then((res) => {
-          const arr = Array.isArray(res) ? res : (res as any[]);
-          if (Array.isArray(arr)) {
-            setCategories(
-              arr.map((item: any) => ({
-                label: item.displayName || item.name,
-                uuid: item.id,
-                raw: item,
-              }))
-            );
-          } else {
-            setCategories([]);
-          }
-        })
-        .catch(() => setCategories([]));
-    });
-  }, []);
-
-  // Fetch subcategories when category changes
-  useEffect(() => {
-    if (formData.category) {
-      import("@/app/lib/api-client").then(({ apiClient }) => {
-        apiClient
-          .get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${formData.category}`)
-          .then((res) => {
-            const arr = Array.isArray(res) ? res : (res as any[]);
-            if (Array.isArray(arr)) {
-              setSubCategories(
-                arr.map((item: any) => ({
-                  label: item.displayName || item.name,
-                  uuid: item.id,
-                }))
-              );
-            } else {
-              setSubCategories([]);
-            }
-          })
-          .catch(() => setSubCategories([]));
-      });
-    } else {
-      setSubCategories([]);
-    }
-  }, [formData.category]);
-  const phases = [
-    { label: "Phase 1", uuid: "7cc92216-4327-4ac0-baa0-8a9ed7647e9f" },
-    { label: "Phase 2", uuid: "30858a95-6a99-4822-963e-253c92adbdc3" },
-    { label: "Phase 3", uuid: "613ece0b-1e3f-4ce5-b781-b595d4b8ebd5" },
-    { label: "Phase 4", uuid: "cc208f88-558e-4ac0-be9d-c43f16f7b72b" },
-    { label: "Phase 5", uuid: "d5b82c1f-ff55-4621-9dec-4175c6a489d6" },
-    { label: "Phase 6", uuid: "b881af67-4f27-49d8-a4e1-e591fd060329" },
-    { label: "Phase 7", uuid: "e6f5ba71-4fa8-41b5-a670-52beb235597f" },
-    { label: "Phase 8", uuid: "085c320e-5e9e-43e2-871e-6c06691c3968" }
-  ];
-  const zones = [
-    { label: "Zone-B", uuid: "3b87cdef-8531-459a-acb6-12e054d099cc" },
-    { label: "Zone 1", uuid: "c7ce1457-0065-4b42-a9a5-38590f82acfe" },
-    { label: "Zone-A", uuid: "f7224696-af90-4939-8580-3e208f4659e1" },
-    { label: "Zone 2", uuid: "158356f9-a03a-4adc-97ba-6a6ab3c59786" }
-    // Add more as needed
-  ];
 
   // Reusable field box
   const FieldBox = useCallback(({ children }: { children: React.ReactNode }) => (
@@ -343,42 +449,41 @@ const AddResidentPageForm: React.FC<{
         {/* Form */}
         <form onSubmit={handleSubmit}>
 
-          {/* Row 1: Full Name + Email Address */}
+          {/* Row 1: Full Name + CNIC */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Full Name" required />
               <TextInput name="fullName" value={formData.fullName} placeholder="Full Name here" required />
             </FieldBox>
-
-            <FieldBox>
-              <FieldLabel text="Email Address" required />
-              <TextInput name="emailAddress" value={formData.emailAddress} placeholder="Email Address here" type="email" required />
-            </FieldBox>
-          </div>
-
-
-          {/* Row 2: Password + Cell Number */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FieldBox>
-              <FieldLabel text="Password" required />
-              <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
-            </FieldBox>
-
-            <FieldBox>
-              <FieldLabel text="Add Cell Number" required />
-              <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
-            </FieldBox>
-          </div>
-
-          {/* Row 2.5: CNIC */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="CNIC" required />
               <TextInput name="cnic" value={formData.cnic} placeholder="Enter CNIC" required />
             </FieldBox>
           </div>
 
-          {/* Row 3: Category + Sub-Category */}
+          {/* Row 2: Email Address + Cell Number */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <FieldBox>
+              <FieldLabel text="Email Address" required />
+              <TextInput name="emailAddress" value={formData.emailAddress} placeholder="Email Address here" type="email" required />
+            </FieldBox>
+            <FieldBox>
+              <FieldLabel text="Add Cell Number" required />
+              <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
+            </FieldBox>
+          </div>
+
+          {/* Row 3: Password (only in add mode) */}
+          {!isEditing && (
+            <div className="mb-4">
+              <FieldBox>
+                <FieldLabel text="Password" required />
+                <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
+              </FieldBox>
+            </div>
+          )}
+
+          {/* Row 4: Category + Sub-Category */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Category" required />
@@ -416,7 +521,6 @@ const AddResidentPageForm: React.FC<{
                 </div>
               )}
             </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Sub-Category" />
               <div
@@ -453,7 +557,7 @@ const AddResidentPageForm: React.FC<{
             </FieldBox>
           </div>
 
-          {/* Row 4: Phase + Zone */}
+          {/* Row 5: Phase + Zone */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Phase" required />
@@ -485,7 +589,6 @@ const AddResidentPageForm: React.FC<{
                 </div>
               )}
             </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Zone" required />
               <div
@@ -518,43 +621,36 @@ const AddResidentPageForm: React.FC<{
             </FieldBox>
           </div>
 
-          {/* Row 5: Khayaban + Floor */}
+          {/* Row 6: Khayaban + Lane/Street No. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FieldBox>
               <FieldLabel text="Khayaban" required />
               <TextInput name="khayaban" value={formData.khayaban} placeholder="Type here" required />
             </FieldBox>
-
-            <FieldBox>
-              <FieldLabel text="Floor" required />
-              <TextInput name="floor" value={formData.floor} placeholder="2-Digits Only" />
-            </FieldBox>
-          </div>
-
-          {/* Row 5: Lane no + plot */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
             <FieldBox>
               <FieldLabel text="Lane/Street No." required />
               <TextInput name="laneStreetNo" value={formData.laneStreetNo} placeholder="Type here" required />
             </FieldBox>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          </div>
+
+          {/* Row 7: Floor + Plot Numbers */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <FieldBox>
-              <FieldLabel text="Plot No." required />
+              <FieldLabel text="Floor" required />
+              <TextInput name="floor" value={formData.floor} placeholder="2-Digits Only" />
+            </FieldBox>
+            <FieldBox>
+              <FieldLabel text="Plot No. (Numeric)" required />
               <TextInput name="plotNoNumeric" value={formData.plotNoNumeric} placeholder="123 Only" required />
             </FieldBox>
-
             <FieldBox>
-              <FieldLabel text="Plot No." required />
+              <FieldLabel text="Plot No. (Alphabetic)" />
               <TextInput name="plotNoAlphabetic" value={formData.plotNoAlphabetic} placeholder="ABC Only" />
             </FieldBox>
-
             <FieldBox>
-              <FieldLabel text="Plot No." required />
+              <FieldLabel text="Plot No. (AlphaNumeric)" />
               <TextInput name="plotNoAlphaNumeric" value={formData.plotNoAlphaNumeric} placeholder="55-C" />
             </FieldBox>
-           </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -752,22 +848,17 @@ const AddResidentPageForm: React.FC<{
           {submitStatus && submitStatus.startsWith("error") && (
             <div className="mt-4 text-red-600 font-semibold">{submitStatus}</div>
           )}
-          {/* Show cURL command after submit */}
-          {curlCommand && !showSuccessModal && (
-            <div className="mt-4 p-4 bg-gray-100 rounded text-xs font-mono">
-              <div className="mb-2 font-bold">Actual cURL:</div>
-              <pre>{curlCommand}</pre>
-            </div>
-          )}
+          {/* ...existing code... */}
           <SuccessModal
             isOpen={showSuccessModal}
             onClose={() => {
               setShowSuccessModal(false);
-              setCurlCommand(""); // Hide cURL block after success
-              router.push("/residents"); // Navigate to /residents
+              setCurlCommand("");
+              setFormDataDebug(null);
+              router.push("/residents");
             }}
-            title="Registration Successful"
-            message="Member registered successfully."
+            title={isEditing ? "Update Successful" : "Registration Successful"}
+            message={isEditing ? "Member updated successfully." : "Member registered successfully."}
           />
           <Snackbar
             open={snackbar.open}
