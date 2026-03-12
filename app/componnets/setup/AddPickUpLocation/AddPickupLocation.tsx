@@ -4,30 +4,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import SvgIcon from "../../shared/SvgIcon";
 import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { fetchAllLocations, Location } from "../../../services/location-service";
 
-type PickupLocationRow = {
-  zone: string;
-  address: string;
-  status: "Active" | "Inactive";
-  createdAt: string;
-};
+type PickupLocationRow = Location;
 
-const STORAGE_KEY = "pickupLocationsData";
-
-const initialPickupLocations: PickupLocationRow[] = [
-  { zone: "Zone 01", address: "Khayaban-e-Itehad Phase VIII", status: "Active", createdAt: "2026-03-01T10:00:00.000Z" },
-  { zone: "Zone 02", address: "Khayaban-e-Itehad Phase VIII", status: "Inactive", createdAt: "2026-03-01T11:00:00.000Z" },
-  { zone: "Zone 03", address: "Khayaban-e-Itehad Phase VIII", status: "Active", createdAt: "2026-03-01T12:00:00.000Z" },
-  { zone: "Zone 04", address: "Khayaban-e-Itehad Phase VIII", status: "Inactive", createdAt: "2026-03-01T13:00:00.000Z" },
-  { zone: "Zone 05", address: "Khayaban-e-Itehad Phase VIII", status: "Active", createdAt: "2026-03-01T14:00:00.000Z" },
-  { zone: "Zone 06", address: "Khayaban-e-Itehad Phase VIII", status: "Inactive", createdAt: "2026-03-01T15:00:00.000Z" },
-  { zone: "Zone 07", address: "Khayaban-e-Itehad Phase VIII", status: "Active", createdAt: "2026-03-01T16:00:00.000Z" },
-  { zone: "Zone 08", address: "Khayaban-e-Itehad Phase VIII", status: "Inactive", createdAt: "2026-03-01T17:00:00.000Z" },
-  { zone: "Zone 09", address: "Khayaban-e-Sehar Phase VII", status: "Active", createdAt: "2026-03-01T18:00:00.000Z" },
-  { zone: "Zone 10", address: "Nishat Commercial Area", status: "Active", createdAt: "2026-03-01T19:00:00.000Z" },
-  { zone: "Zone 11", address: "Sunset Boulevard DHA", status: "Inactive", createdAt: "2026-03-01T20:00:00.000Z" },
-  { zone: "Zone 12", address: "Khayaban-e-Muslim Extension", status: "Active", createdAt: "2026-03-01T21:00:00.000Z" },
-];
+// Removed dummy data and storage key
 
 const AddPickupLocation = () => {
   const router = useRouter();
@@ -36,20 +17,9 @@ const AddPickupLocation = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
-    if (!savedData) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialPickupLocations));
-      setPickupLocations(initialPickupLocations);
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(savedData) as PickupLocationRow[];
-      setPickupLocations(Array.isArray(parsed) ? parsed : initialPickupLocations);
-    } catch {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initialPickupLocations));
-      setPickupLocations(initialPickupLocations);
-    }
+    fetchAllLocations()
+      .then((locations) => setPickupLocations(locations))
+      .catch(() => setPickupLocations([]));
   }, []);
 
   const totalPages = Math.max(1, Math.ceil(pickupLocations.length / rowsPerPage));
@@ -121,12 +91,12 @@ const AddPickupLocation = () => {
                       <td className="px-4 py-3 text-sm">
                         <span
                           className={`px-2 py-1 rounded text-xs font-semibold ${
-                            item.status === "Active"
+                            (!item.status || item.status === "Active")
                               ? "bg-green-100 text-green-600"
                               : "bg-red-100 text-red-600"
                           }`}
                         >
-                          {item.status}
+                          {item.status ? item.status : "Active"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">

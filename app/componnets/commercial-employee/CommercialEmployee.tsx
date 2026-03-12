@@ -15,7 +15,7 @@ interface CommercialEmployeeType {
   email: string;
   phone: string;
   subcategory: string;
-  employeerRegistrationNumber: string;
+  employeeRegistrationNumber: string;
 }
 
 const CommercialEmployee: React.FC = () => {
@@ -155,7 +155,7 @@ const CommercialEmployee: React.FC = () => {
                   <td className="px-4 py-3 text-sm">{employee.email}</td>
                   <td className="px-4 py-3 text-sm">{employee.phone}</td>
                   <td className="px-4 py-3 text-sm">{employee.subcategory}</td>
-                  <td className="px-4 py-3 text-sm">{employee.employeerRegistrationNumber}</td>
+                  <td className="px-4 py-3 text-sm">{employee.employeeRegistrationNumber}</td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex justify-center gap-3">
                       <button

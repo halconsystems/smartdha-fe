@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { fetchMemberById } from "../../services/member-service";
 import SuccessModal from "../shared/SuccessModal";
 import { useRouter } from "next/navigation";
 import { registerNonMember } from "@/app/lib/api-client";
@@ -24,6 +25,9 @@ interface AddVisitorFormProps {
   visitorId?: string;
 }
 
+
+type Category = { label: string; uuid: string; raw?: any };
+type SubCategory = { label: string; uuid: string };
 const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState<boolean>(false);
@@ -42,44 +46,62 @@ const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
     licensePlate: "",
     cnic: "",
   });
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+
+
 
   useEffect(() => {
     const editData = localStorage.getItem("editResidentVisitorData");
-    if (!editData) {
-      return;
-    }
-
+    if (!editData) return;
     try {
-      const parsed = JSON.parse(editData) as {
-        name?: string;
-        email?: string;
-        phone?: string;
-        subCategory?: string;
-        Destination?: string;
-        vehicleInfo?: string;
-        cnic?: string;
-      };
-
-      const [platePart = "", numberPart = ""] = (parsed.vehicleInfo ?? "").split("-").map((part) => part.trim());
-      const vehicleNoAlphabetic = platePart.split(" ").pop() ?? "";
-
-      setIsEditing(true);
-      setFormData((prev) => ({
-        ...prev,
-        fullName: parsed.name ?? prev.fullName,
-        emailAddress: parsed.email ?? prev.emailAddress,
-        cellNumber: parsed.phone ?? prev.cellNumber,
-        subCategory: parsed.subCategory ?? prev.subCategory,
-        destination: parsed.Destination ?? prev.destination,
-        vehicleNoAlphabetic: vehicleNoAlphabetic || prev.vehicleNoAlphabetic,
-        vehicleNoNumeric: numberPart || prev.vehicleNoNumeric,
-        licensePlate: parsed.vehicleInfo ?? prev.licensePlate,
-        cnic: parsed.cnic ?? prev.cnic,
-      }));
+      const parsed = JSON.parse(editData);
+      if (parsed && parsed.id) {
+        setIsEditing(true);
+        fetchMemberById(parsed.id)
+          .then((member) => {
+            // Find category UUID by name
+            const categoryObj = categories.find(cat => cat.label === member.category);
+            const categoryId = categoryObj ? categoryObj.uuid : "";
+            if (categoryId) {
+              import("@/app/lib/api-client").then(({ apiClient }) => {
+                apiClient.get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${categoryId}`)
+                  .then((subRes: any) => {
+                    const arr = Array.isArray(subRes) ? subRes : (subRes as any[]);
+                    setSubCategories(
+                      arr.map((item: any) => ({
+                        label: item.displayName || item.name,
+                        uuid: item.id,
+                      }))
+                    );
+                    const subCatObj = arr.find((sub: any) => (sub.displayName || sub.name) === member.subcategory);
+                    const [platePart = "", numberPart = ""] = (member.vehicleInfo ?? "").split("-").map((part: string) => part.trim());
+                    const vehicleNoAlphabetic = platePart.split(" ").pop() ?? "";
+                    setFormData((prev) => ({
+                      ...prev,
+                      fullName: member.name ?? prev.fullName,
+                      emailAddress: member.email ?? prev.emailAddress,
+                      cellNumber: member.phone ?? prev.cellNumber,
+                      category: categoryId,
+                      subCategory: subCatObj ? subCatObj.id : "",
+                      destination: member.destination ?? member.Destination ?? prev.destination,
+                      vehicleNoAlphabetic: vehicleNoAlphabetic || prev.vehicleNoAlphabetic,
+                      vehicleNoNumeric: numberPart || prev.vehicleNoNumeric,
+                      licensePlate: member.vehicleInfo ?? prev.licensePlate,
+                      cnic: member.cnic ?? prev.cnic,
+                    }));
+                  });
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to fetch member by id:", error);
+          });
+      }
     } catch (error) {
       console.error("Error parsing resident visitor edit data:", error);
     }
-  }, []);
+  }, [categories]);
 
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -117,7 +139,31 @@ const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
       fd.append("Destination", formData.destination);
       fd.append("VehicleNumber", formData.licensePlate);
       fd.append("CNIC", formData.cnic);
-      await registerNonMember(fd);
+      if (isEditing) {
+        // Get id from localStorage
+        const editData = localStorage.getItem("editResidentVisitorData");
+        if (editData) {
+          const parsed = JSON.parse(editData);
+          if (parsed && parsed.id) {
+            fd.append("Id", parsed.id);
+          }
+        }
+        // Add Authorization header
+        let headers: Record<string, string> = {};
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+        await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type", {
+          method: "POST",
+          headers,
+          body: fd,
+        });
+      } else {
+        await registerNonMember(fd);
+      }
       setShowSuccessModal(true);
       setSubmitStatus("success");
       localStorage.removeItem("editResidentVisitorData");
@@ -131,11 +177,6 @@ const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
     window.history.back();
   };
 
-  // Dynamic categories and subcategories logic
-  type Category = { label: string; uuid: string; raw?: any };
-  type SubCategory = { label: string; uuid: string };
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
 
   // Fetch categories on mount
   useEffect(() => {
@@ -262,12 +303,13 @@ const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
           </div>
 
           {/* Row 2: Password + Cell Number */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FieldBox>
-              <FieldLabel text="Password" required />
-              <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
-            </FieldBox>
-
+          <div className={`grid gap-4 mb-4 ${isEditing ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}> 
+            {!isEditing && (
+              <FieldBox>
+                <FieldLabel text="Password" required />
+                <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
+              </FieldBox>
+            )}
             <FieldBox>
               <FieldLabel text="Add Cell Number" required />
               <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
@@ -275,17 +317,17 @@ const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
           </div>
 
           {/* Row 2.5: CNIC */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FieldBox>
-              <FieldLabel text="CNIC" required />
-              <TextInput
-                name="cnic"
-                value={formData.cnic}
-                placeholder="Enter CNIC"
-                required
-              />
-            </FieldBox>
-          </div>
+            <div className={`grid gap-4 mb-4 ${isEditing ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
+              <FieldBox>
+                <FieldLabel text="CNIC" required />
+                <TextInput
+                  name="cnic"
+                  value={formData.cnic}
+                  placeholder="Enter CNIC"
+                  required
+                />
+              </FieldBox>
+            </div>
 
           {/* Row 3: Category + Sub-Category */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -441,8 +483,8 @@ const AddVisitorForm: React.FC<AddVisitorFormProps> = ({ mode, visitorId }) => {
               setShowSuccessModal(false);
               router.push("/residents");
             }}
-            title="Registration Successful"
-            message="Visitor registered successfully."
+            title={isEditing ? "Update Successful" : "Registration Successful"}
+            message={isEditing ? "Visitor updated successfully." : "Visitor registered successfully."}
           />
         </form>
       </div>

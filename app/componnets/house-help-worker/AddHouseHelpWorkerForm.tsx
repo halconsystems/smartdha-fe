@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { fetchMemberById } from "../../services/member-service";
 import { registerNonMember } from "@/app/lib/api-client";
 import SuccessModal from "../shared/SuccessModal";
 import { useRouter } from "next/navigation";
@@ -40,34 +41,79 @@ const AddHouseHelpWorkerForm: React.FC = () => {
     cnic: "",
   });
 
+  // --- CATEGORY/SUBCATEGORY STATE ---
+  type Category = { label: string; uuid: string; raw?: any };
+  type SubCategory = { label: string; uuid: string };
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    import("@/app/lib/api-client").then(({ apiClient }) => {
+      apiClient
+        .get("/api/nonmember/get-nonmember-category")
+        .then((res: any) => {
+          const arr = Array.isArray(res) ? res : (res as any[]);
+          if (Array.isArray(arr)) {
+            setCategories(arr.map((item: any) => ({
+              label: item.displayName || item.name,
+              uuid: item.id,
+              raw: item,
+            })));
+          } else {
+            setCategories([]);
+          }
+        })
+        .catch(() => setCategories([]));
+    });
+  }, []);
+
+  // Prefill logic
   useEffect(() => {
     const editData = localStorage.getItem("editHouseHelpWorkerData");
-    if (!editData || editData === "null" || editData.trim() === "") {
-      return;
-    }
-
+    if (!editData || editData === "null" || editData.trim() === "") return;
     try {
-      const parsed = JSON.parse(editData) as {
-        name?: string;
-        email?: string;
-        phone?: string;
-        subCategory?: string;
-        cnic?: string;
-      };
-
-      setIsEditing(true);
-      setFormData((prev) => ({
-        ...prev,
-        fullName: parsed.name ?? prev.fullName,
-        emailAddress: parsed.email ?? prev.emailAddress,
-        cellNumber: parsed.phone ?? prev.cellNumber,
-        subCategory: parsed.subCategory ?? prev.subCategory,
-        cnic: parsed.cnic ?? prev.cnic,
-      }));
+      const parsed = JSON.parse(editData);
+      if (parsed && parsed.id) {
+        setIsEditing(true);
+        fetchMemberById(parsed.id)
+          .then((member) => {
+            // Find category UUID by name
+            const categoryObj = categories.find(cat => cat.label === member.category);
+            const categoryId = categoryObj ? categoryObj.uuid : "";
+            if (categoryId) {
+              import("@/app/lib/api-client").then(({ apiClient }) => {
+                apiClient.get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${categoryId}`)
+                  .then((subRes: any) => {
+                    const arr = Array.isArray(subRes) ? subRes : (subRes as any[]);
+                    setSubCategories(
+                      arr.map((item: any) => ({
+                        label: item.displayName || item.name,
+                        uuid: item.id,
+                      }))
+                    );
+                    const subCatObj = arr.find((sub: any) => (sub.displayName || sub.name) === member.subcategory);
+                    setFormData((prev) => ({
+                      ...prev,
+                      fullName: member.name ?? prev.fullName,
+                      emailAddress: member.email ?? prev.emailAddress,
+                      cellNumber: member.phone ?? prev.cellNumber,
+                      category: categoryId,
+                      subCategory: subCatObj ? subCatObj.id : "",
+                      cnic: member.cnic ?? prev.cnic,
+                    }));
+                  });
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to fetch member by id:", error);
+          });
+      }
     } catch (error) {
       console.error("Error parsing house help worker edit data:", error);
     }
-  }, []);
+  }, [categories]);
 
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -98,6 +144,8 @@ const AddHouseHelpWorkerForm: React.FC = () => {
 
   const [submitStatus, setSubmitStatus] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [apiResult, setApiResult] = useState<any>(null);
+  const [successMessage, setSuccessMessage] = useState<string>("House help worker registered successfully.");
   const router = useRouter();
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -114,12 +162,72 @@ const AddHouseHelpWorkerForm: React.FC = () => {
       if (formData.cnicFront) fd.append("CNICFrontImage", formData.cnicFront);
       if (formData.cnicBack) fd.append("CNICBackImage", formData.cnicBack);
       fd.append("CNIC", formData.cnic);
-      await registerNonMember(fd);
+
+      // Log all FormData values
+      const formDataEntries: Record<string, any> = {};
+      fd.forEach((value, key) => {
+        formDataEntries[key] = value;
+      });
+      console.log("FormData values before API call:", formDataEntries);
+
+      let result = null;
+      if (isEditing) {
+        // Get id from localStorage
+        const editData = localStorage.getItem("editHouseHelpWorkerData");
+        if (editData) {
+          const parsed = JSON.parse(editData);
+          if (parsed && parsed.id) {
+            fd.append("Id", parsed.id);
+          }
+        }
+        // Add Authorization header
+        let headers: Record<string, string> = {};
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+        console.log("Calling UPDATE API", {
+          url: "https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type",
+          headers,
+          formData: fd
+        });
+        const response = await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type", {
+          method: "POST",
+          headers,
+          body: fd,
+        });
+        console.log("Update API response", response);
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Update API error", errorText);
+          throw new Error(errorText || "Failed to update member");
+        }
+        result = await response.json().catch(() => ({}));
+        setApiResult(result);
+        console.log("Update API result", result);
+      } else {
+        console.log("Calling ADD API", {
+          url: "registerNonMember",
+          formData: fd
+        });
+        result = await registerNonMember(fd);
+        setApiResult(result);
+        console.log("Add API result", result);
+      }
       setSubmitStatus("success");
+      if (isEditing) {
+        setSuccessMessage("House help worker updated successfully.");
+      } else {
+        setSuccessMessage("House help worker registered successfully.");
+      }
       setShowSuccessModal(true);
       localStorage.removeItem("editHouseHelpWorkerData");
     } catch (err: any) {
+      console.error("API call error", err);
       setSubmitStatus("error: " + (err.message || "Unknown error"));
+      setApiResult(null);
     }
   };
 
@@ -128,42 +236,13 @@ const AddHouseHelpWorkerForm: React.FC = () => {
     window.history.back();
   };
 
-  // Dynamic categories and subcategories logic
-  type Category = { label: string; uuid: string; raw?: any };
-  type SubCategory = { label: string; uuid: string };
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
-
-  // Fetch categories on mount
-  useEffect(() => {
-    import("@/app/lib/api-client").then(({ apiClient }) => {
-      apiClient
-        .get("/api/nonmember/get-nonmember-category")
-        .then((res) => {
-          const arr = Array.isArray(res) ? res : (res as any[]);
-          if (Array.isArray(arr)) {
-            setCategories(
-              arr.map((item: any) => ({
-                label: item.displayName || item.name,
-                uuid: item.id,
-                raw: item,
-              }))
-            );
-          } else {
-            setCategories([]);
-          }
-        })
-        .catch(() => setCategories([]));
-    });
-  }, []);
-
   // Fetch subcategories when category changes
   useEffect(() => {
     if (formData.category) {
       import("@/app/lib/api-client").then(({ apiClient }) => {
         apiClient
           .get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${formData.category}`)
-          .then((res) => {
+          .then((res: any) => {
             const arr = Array.isArray(res) ? res : (res as any[]);
             if (Array.isArray(arr)) {
               setSubCategories(
@@ -231,10 +310,10 @@ const AddHouseHelpWorkerForm: React.FC = () => {
   ), [handleInputChange]);
 
   return (
-    <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-6">
+    <div className="w-full bg-[#F9FAFB] shadow-[0_0_15px_rgba(0,0,0,0.25)] rounded-lg p-4">
       <div className="w-full max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-3">
           <p className="text-lg font-semibold text-black">
             {isEditing ? "Edit house help worker details" : "Please provide house help worker details below!"}
           </p>
@@ -242,8 +321,8 @@ const AddHouseHelpWorkerForm: React.FC = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
-          {/* Row 1: Full Name + Email Address */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* Row 1: Full Name + Email Address + Cell Number */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-1 mb-1">
             <FieldBox>
               <FieldLabel text="Full Name" required />
               <TextInput
@@ -253,7 +332,6 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                 required
               />
             </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Email Address" required />
               <TextInput
@@ -264,21 +342,6 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                 required
               />
             </FieldBox>
-          </div>
-
-          {/* Row 2: Password + Cell Number */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FieldBox>
-              <FieldLabel text="Password" required />
-              <TextInput
-                name="password"
-                value={formData.password}
-                placeholder="Password here"
-                type="password"
-                required
-              />
-            </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Add Cell Number" required />
               <TextInput
@@ -291,8 +354,20 @@ const AddHouseHelpWorkerForm: React.FC = () => {
             </FieldBox>
           </div>
 
-          {/* Row 2.5: CNIC */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          {/* Row 2: Password (only if not editing) + CNIC */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mb-1">
+            {!isEditing && (
+              <FieldBox>
+                <FieldLabel text="Password" required />
+                <TextInput
+                  name="password"
+                  value={formData.password}
+                  placeholder="Password here"
+                  type="password"
+                  required
+                />
+              </FieldBox>
+            )}
             <FieldBox>
               <FieldLabel text="CNIC" required />
               <TextInput
@@ -305,7 +380,7 @@ const AddHouseHelpWorkerForm: React.FC = () => {
           </div>
 
           {/* Row 3: Category + Sub-Category */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 mb-1">
             <FieldBox>
               <FieldLabel text="Category" required />
               <div
@@ -351,7 +426,6 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                 </div>
               )}
             </FieldBox>
-
             <FieldBox>
               <FieldLabel text="Sub-Category" />
               <div
@@ -399,12 +473,13 @@ const AddHouseHelpWorkerForm: React.FC = () => {
             </FieldBox>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+          {/* Row 4: Profile Picture, CNIC Front, CNIC Back */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-1 mb-1">
             {/* Profile Picture Upload */}
-            <div className="relative mb-6">
-              <div className="bg-white border-2 border-dashed rounded-xl px-4 py-3 flex items-center justify-between min-h-[80px]">
+            <div className="relative mb-1">
+              <div className="bg-white border-2 border-dashed rounded-xl px-4 py-2 flex items-center justify-between min-h-[60px]">
                 <div className="flex-1">
-                  <div className="flex items-center gap-1.5 mb-2">
+                  <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-xs font-semibold text-[#30B33D]">
                       Profile Picture
                     </span>
@@ -464,12 +539,12 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                     />
                   </label>
 
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-gray-400 mt-0.5">
                     {profilePicture ? profilePicture.name : "No file chosen"}
                   </p>
                 </div>
 
-                <div className="w-[70px] h-[70px] rounded-full overflow-hidden border-[3px] border-white shrink-0 bg-gray-300 flex items-center justify-center -mr-2 shadow-md">
+                <div className="w-[50px] h-[50px] rounded-full overflow-hidden border-[2px] border-white shrink-0 bg-gray-300 flex items-center justify-center -mr-2 shadow-md">
                   {profilePreview ? (
                     <img
                       src={profilePreview}
@@ -478,8 +553,8 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                     />
                   ) : (
                     <svg
-                      width="42"
-                      height="42"
+                      width="32"
+                      height="32"
                       viewBox="0 0 100 100"
                       fill="none"
                     >
@@ -492,10 +567,10 @@ const AddHouseHelpWorkerForm: React.FC = () => {
             </div>
 
             {/* CNIC Front Upload */}
-            <div className="relative mb-6">
-              <div className="bg-white border-2 border-dashed rounded-xl px-4 py-3 flex items-center justify-between min-h-[80px]">
+            <div className="relative mb-1">
+              <div className="bg-white border-2 border-dashed rounded-xl px-4 py-2 flex items-center justify-between min-h-[60px]">
                 <div className="flex-1">
-                  <div className="flex items-center gap-1.5 mb-2">
+                  <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-xs font-semibold text-[#30B33D]">
                       CNIC Front
                     </span>
@@ -555,20 +630,18 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                     />
                   </label>
 
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-gray-400 mt-0.5">
                     {cnicFront ? cnicFront.name : "No file chosen"}
                   </p>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             {/* CNIC Back Upload */}
-            <div className="relative mb-6">
-              <div className="bg-white border-2 border-dashed rounded-xl px-4 py-3 flex items-center justify-between min-h-[80px]">
+            <div className="relative mb-1">
+              <div className="bg-white border-2 border-dashed rounded-xl px-4 py-2 flex items-center justify-between min-h-[60px]">
                 <div className="flex-1">
-                  <div className="flex items-center gap-1.5 mb-2">
+                  <div className="flex items-center gap-1.5 mb-1">
                     <span className="text-xs font-semibold text-[#30B33D]">
                       CNIC Back
                     </span>
@@ -628,25 +701,26 @@ const AddHouseHelpWorkerForm: React.FC = () => {
                     />
                   </label>
 
-                  <p className="text-[11px] text-gray-400 mt-1">
+                  <p className="text-[11px] text-gray-400 mt-0.5">
                     {cnicBack ? cnicBack.name : "No file chosen"}
                   </p>
                 </div>
               </div>
             </div>
           </div>
+
           {/* Submit Buttons */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
             <button
               type="button"
               onClick={handleCancel}
-              className="py-3 rounded-xl bg-white text-[#30B33D] text-[15px] font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition"
+              className="py-2 rounded-xl bg-white text-[#30B33D] text-[15px] font-semibold cursor-pointer shadow-sm hover:bg-gray-50 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="py-3 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
+              className="py-2 rounded-xl bg-[#30B33D] text-white text-[15px] font-semibold cursor-pointer shadow-md hover:bg-[#28a035] transition"
             >
               {isEditing ? "Update" : "Add"}
             </button>
@@ -659,11 +733,11 @@ const AddHouseHelpWorkerForm: React.FC = () => {
               setShowSuccessModal(false);
               router.push("/residents");
             }}
-            title="Registration Successful"
-            message="House help worker registered successfully."
+            title={isEditing ? "Update Successful" : "Registration Successful"}
+            message={successMessage}
           />
           {submitStatus && submitStatus.startsWith("error") && (
-            <div className="mt-4 text-red-600 font-semibold">{submitStatus}</div>
+            <div className="mt-2 text-red-600 font-semibold">{submitStatus}</div>
           )}
         </form>
       </div>

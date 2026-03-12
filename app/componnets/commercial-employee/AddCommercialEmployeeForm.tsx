@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { fetchMemberById } from "../../services/member-service";
 import SuccessModal from "../shared/SuccessModal";
 import Snackbar from "../shared/Snackbar";
 import { registerNonMember } from "@/app/lib/api-client";
@@ -22,6 +23,8 @@ type FormData = {
 };
 
 type SubCategory = { label: string; uuid: string };
+
+type Category = { label: string; uuid: string; raw?: any };
 
 const AddCommercialEmployeeForm: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
@@ -45,34 +48,64 @@ const AddCommercialEmployeeForm: React.FC = () => {
     cnic: "",
   });
 
+
+  // Move categories and subCategories state declarations above this useEffect
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+
   useEffect(() => {
     const editData = localStorage.getItem("editCommercialEmployeeData");
-    if (!editData) {
-      return;
-    }
-
+    if (!editData) return;
     try {
-      const parsed = JSON.parse(editData) as {
-        name?: string;
-        email?: string;
-        phone?: string;
-        subCategory?: string;
-        employeerRegistrationNumber?: string;
-      };
-
-      setIsEditing(true);
-      setFormData((prev) => ({
-        ...prev,
-        fullName: parsed.name ?? prev.fullName,
-        emailAddress: parsed.email ?? prev.emailAddress,
-        cellNumber: parsed.phone ?? prev.cellNumber,
-        subCategory: parsed.subCategory ?? prev.subCategory,
-        employerRegistrationNo: parsed.employeerRegistrationNumber ?? prev.employerRegistrationNo,
-      }));
+      const parsed = JSON.parse(editData);
+      if (parsed && parsed.id) {
+        setIsEditing(true);
+        fetchMemberById(parsed.id)
+          .then((member) => {
+            // Find category UUID by name
+            const categoryObj = categories.find(cat => cat.label === member.category);
+            const categoryId = categoryObj ? categoryObj.uuid : "";
+            // Always use the value from API, even if 0 or falsy
+            const employerRegNo = member.employeeRegistrationNumber !== undefined ? String(member.employeeRegistrationNumber) : "";
+            if (categoryId) {
+              apiClient.get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${categoryId}`)
+                .then((subRes) => {
+                  const arr = Array.isArray(subRes) ? subRes : (subRes as any[]);
+                  setSubCategories(
+                    arr.map((item: any) => ({
+                      label: item.displayName || item.name,
+                      uuid: item.id,
+                    }))
+                  );
+                  const subCatObj = arr.find((sub: any) => (sub.displayName || sub.name) === member.subcategory);
+                  setFormData((prev) => ({
+                    ...prev,
+                    fullName: member.name ?? prev.fullName,
+                    emailAddress: member.email ?? prev.emailAddress,
+                    cellNumber: member.phone ?? prev.cellNumber,
+                    category: categoryId,
+                    subCategory: subCatObj ? subCatObj.id : "",
+                    employerRegistrationNo: employerRegNo,
+                  }));
+                });
+            } else {
+              setFormData((prev) => ({
+                ...prev,
+                fullName: member.name ?? prev.fullName,
+                emailAddress: member.email ?? prev.emailAddress,
+                cellNumber: member.phone ?? prev.cellNumber,
+                employerRegistrationNo: employerRegNo,
+              }));
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to fetch member by id:", error);
+          });
+      }
     } catch (error) {
       console.error("Error parsing commercial employee edit data:", error);
     }
-  }, []);
+  }, [categories]);
 
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -106,24 +139,70 @@ const AddCommercialEmployeeForm: React.FC = () => {
 
   const router = useRouter();
 
+
+  // For debugging: preview the FormData payload before submit
+  const [formDataPreview, setFormDataPreview] = useState<any[]>([]);
+
+  const buildFormData = () => {
+    const fd = new window.FormData();
+    fd.append("Name", formData.fullName);
+    fd.append("Password", formData.password);
+    fd.append("Email", formData.emailAddress);
+    fd.append("MobileNo", formData.cellNumber);
+    fd.append("CategoryId", formData.category);
+    fd.append("SubCategoryId", formData.subCategory);
+    fd.append("employeeRegistrationNumber", String(formData.employerRegistrationNo ?? ""));
+    fd.append("CNIC", formData.cnic);
+    if (formData.profilePicture) fd.append("ProfilePicture", formData.profilePicture);
+    if (formData.serviceCardDocument) fd.append("ServiceCardDocument", formData.serviceCardDocument);
+    let isEdit = isEditing;
+    let editId = null;
+    if (isEdit) {
+      const editData = localStorage.getItem("editCommercialEmployeeData");
+      if (editData) {
+        const parsed = JSON.parse(editData);
+        if (parsed && parsed.id) {
+          fd.append("Id", parsed.id);
+          editId = parsed.id;
+        }
+      }
+    }
+    return fd;
+  };
+
+  // Update preview whenever formData changes
+  useEffect(() => {
+    const fd = buildFormData();
+    const arr: any[] = [];
+    for (const pair of fd.entries()) {
+      arr.push({ key: pair[0], value: pair[1] });
+    }
+    setFormDataPreview(arr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, profilePicture, serviceCardDocument, isEditing]);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSubmitStatus(null);
     try {
-      const fd = new window.FormData();
-      fd.append("Name", formData.fullName);
-      fd.append("Password", formData.password);
-      fd.append("Email", formData.emailAddress);
-      fd.append("MobileNo", formData.cellNumber);
-      fd.append("CategoryId", formData.category);
-      fd.append("SubCategoryId", formData.subCategory);
-      fd.append("EmployerRegistrationNo", formData.employerRegistrationNo);
-      fd.append("CNIC", formData.cnic); // Use user input
-      if (formData.profilePicture) fd.append("ProfilePicture", formData.profilePicture);
-      if (formData.serviceCardDocument) fd.append("ServiceCardDocument", formData.serviceCardDocument);
+      const fd = buildFormData();
 
-      // Generate cURL command
-      let curl = 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/register-nonmember \\\n  -H "Content-Type: multipart/form-data"';
+      // ...existing code for cURL and API call...
+      let isEdit = isEditing;
+      let editId = null;
+      if (isEdit) {
+        const editData = localStorage.getItem("editCommercialEmployeeData");
+        if (editData) {
+          const parsed = JSON.parse(editData);
+          if (parsed && parsed.id) {
+            editId = parsed.id;
+          }
+        }
+      }
+
+      let curl = isEdit
+        ? 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type \\n  -H "Content-Type: multipart/form-data"'
+        : 'curl -X POST https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/register-nonmember \\n  -H "Content-Type: multipart/form-data"';
       const fields = [
         ["Name", formData.fullName],
         ["Password", formData.password],
@@ -131,25 +210,41 @@ const AddCommercialEmployeeForm: React.FC = () => {
         ["MobileNo", formData.cellNumber],
         ["CategoryId", formData.category],
         ["SubCategoryId", formData.subCategory],
-        ["EmployerRegistrationNo", formData.employerRegistrationNo],
+        ["employeeRegistrationNumber", String(formData.employerRegistrationNo ?? "")],
         ["CNIC", formData.cnic],
       ];
+      if (isEdit && editId) fields.push(["Id", editId]);
       fields.forEach(([key, value]) => {
-        if (value) curl += ` \\\n  -F \"${key}=${value}\"`;
+        if (value) curl += ` \\n  -F \"${key}=${value}\"`;
       });
       if (formData.profilePicture) {
-        curl += ` \\\n  -F \"ProfilePicture=@/path/to/file.jpg\"`;
+        curl += ` \\n  -F \"ProfilePicture=@/path/to/file.jpg\"`;
       }
       if (formData.serviceCardDocument) {
-        curl += ` \\\n  -F \"ServiceCardDocument=@/path/to/servicecard.pdf\"`;
+        curl += ` \\n  -F \"ServiceCardDocument=@/path/to/servicecard.pdf\"`;
       }
       setCurlCommand(curl);
 
-      await registerNonMember(fd);
+      if (isEdit) {
+        let headers: Record<string, string> = {};
+        if (typeof window !== "undefined") {
+          let token = localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+        await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type", {
+          method: "POST",
+          headers,
+          body: fd,
+        });
+      } else {
+        await registerNonMember(fd);
+      }
       setShowSuccessModal(true);
       setSubmitStatus("success");
-      setSnackbar({ open: true, message: "Registration successful!", type: "success" });
-      setCurlCommand(""); // Hide cURL block after success
+      setSnackbar({ open: true, message: isEdit ? "Update successful!" : "Registration successful!", type: "success" });
+      setCurlCommand("");
       localStorage.removeItem("editCommercialEmployeeData");
     } catch (err: any) {
       let message = "Unknown error";
@@ -178,9 +273,7 @@ const AddCommercialEmployeeForm: React.FC = () => {
   };
 
   // Fetch categories from API
-  type Category = { label: string; uuid: string; raw?: any };
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+  // (Removed duplicate declaration here)
 
   // Helper to get auth token and cookie (match api-client logic)
   const getAuthToken = () => {
@@ -333,17 +426,25 @@ const AddCommercialEmployeeForm: React.FC = () => {
           </div>
 
           {/* Row 2: Password + Cell Number */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FieldBox>
-              <FieldLabel text="Password" required />
-              <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
-            </FieldBox>
-
-            <FieldBox>
-              <FieldLabel text="Add Cell Number" required />
-              <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
-            </FieldBox>
-          </div>
+          {!isEditing ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <FieldBox>
+                <FieldLabel text="Password" required />
+                <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
+              </FieldBox>
+              <FieldBox>
+                <FieldLabel text="Add Cell Number" required />
+                <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
+              </FieldBox>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <FieldBox>
+                <FieldLabel text="Add Cell Number" required />
+                <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
+              </FieldBox>
+            </div>
+          )}
 
           {/* Row 2.5: CNIC */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -606,8 +707,8 @@ const AddCommercialEmployeeForm: React.FC = () => {
               setCurlCommand("");
               router.push("/residents");
             }}
-            title="Registration Successful"
-            message="Member registered successfully."
+            title={isEditing ? "Update Successful" : "Registration Successful"}
+            message={isEditing ? "Member updated successfully." : "Member registered successfully."}
           />
           <Snackbar
             open={snackbar.open}
@@ -615,6 +716,15 @@ const AddCommercialEmployeeForm: React.FC = () => {
             type={snackbar.type}
             onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
           />
+        {/* Debug: Show FormData payload before submit */}
+        <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="font-semibold mb-2 text-gray-700">FormData Payload Preview:</div>
+          <ul className="text-xs text-gray-800">
+            {formDataPreview.map((item, idx) => (
+              <li key={idx}><b>{item.key}:</b> {item.value instanceof File ? item.value.name : String(item.value)}</li>
+            ))}
+          </ul>
+        </div>
         </form>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { fetchMemberById } from "../../services/member-service";
 import SuccessModal from "../shared/SuccessModal";
 import Snackbar from "../shared/Snackbar";
 import { registerNonMember } from "@/app/lib/api-client";
@@ -61,41 +62,85 @@ const AddOthersForm: React.FC = () => {
     window.location.href = "/residents";
   };
 
+  // --- CATEGORY/SUBCATEGORY STATE ---
+  type Category = { label: string; uuid: string; raw?: any };
+  type SubCategory = { label: string; uuid: string };
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
+
+  // Fetch categories on mount
+  useEffect(() => {
+    import("@/app/lib/api-client").then(({ apiClient }) => {
+      apiClient
+        .get("/api/nonmember/get-nonmember-category")
+        .then((res: any) => {
+          const arr = Array.isArray(res) ? res : (res as any[]);
+          if (Array.isArray(arr)) {
+            setCategories(arr.map((item: any) => ({
+              label: item.displayName || item.name,
+              uuid: item.id,
+              raw: item,
+            })));
+          } else {
+            setCategories([]);
+          }
+        })
+        .catch(() => setCategories([]));
+    });
+  }, []);
+
+  // Prefill logic
   useEffect(() => {
     const editData = localStorage.getItem("editOthersData");
-    if (!editData) {
-      return;
-    }
-
+    if (!editData) return;
     try {
-      const parsed = JSON.parse(editData) as {
-        name?: string;
-        email?: string;
-        phone?: string;
-        subCategory?: string;
-        purposeOfVisit?: string;
-        vehicleInfo?: string;
-      };
-
-      const [platePart = "", numberPart = ""] = (parsed.vehicleInfo ?? "").split("-").map((part) => part.trim());
-      const vehicleNoAlphabetic = platePart.split(" ").pop() ?? "";
-
-      setIsEditing(true);
-      setFormData((prev) => ({
-        ...prev,
-        fullName: parsed.name ?? prev.fullName,
-        emailAddress: parsed.email ?? prev.emailAddress,
-        cellNumber: parsed.phone ?? prev.cellNumber,
-        subCategory: parsed.subCategory ?? prev.subCategory,
-        purposeOfVisit: parsed.purposeOfVisit ?? prev.purposeOfVisit,
-        vehicleNoAlphabetic: vehicleNoAlphabetic || prev.vehicleNoAlphabetic,
-        vehicleNoNumeric: numberPart || prev.vehicleNoNumeric,
-        licensePlate: parsed.vehicleInfo ?? prev.licensePlate,
-      }));
+      const parsed = JSON.parse(editData);
+      if (parsed && parsed.id) {
+        setIsEditing(true);
+        fetchMemberById(parsed.id)
+          .then((member) => {
+            // Find category UUID by name
+            const categoryObj = categories.find(cat => cat.label === member.category);
+            const categoryId = categoryObj ? categoryObj.uuid : "";
+            if (categoryId) {
+              import("@/app/lib/api-client").then(({ apiClient }) => {
+                apiClient.get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${categoryId}`)
+                  .then((subRes: any) => {
+                    const arr = Array.isArray(subRes) ? subRes : (subRes as any[]);
+                    setSubCategories(
+                      arr.map((item: any) => ({
+                        label: item.displayName || item.name,
+                        uuid: item.id,
+                      }))
+                    );
+                    const subCatObj = arr.find((sub: any) => (sub.displayName || sub.name) === member.subcategory);
+                    const [platePart = "", numberPart = ""] = (member.vehicleInfo ?? "").split("-").map((part: string) => part.trim());
+                    const vehicleNoAlphabetic = platePart.split(" ").pop() ?? "";
+                    setFormData((prev) => ({
+                      ...prev,
+                      fullName: member.name ?? prev.fullName,
+                      emailAddress: member.email ?? prev.emailAddress,
+                      cellNumber: member.phone ?? prev.cellNumber,
+                      category: categoryId,
+                      subCategory: subCatObj ? subCatObj.id : "",
+                      purposeOfVisit: member.purposeVisit ?? member.purposeOfVisit ?? prev.purposeOfVisit,
+                      vehicleNoAlphabetic: vehicleNoAlphabetic || prev.vehicleNoAlphabetic,
+                      vehicleNoNumeric: numberPart || prev.vehicleNoNumeric,
+                      licensePlate: member.vehicleInfo ?? prev.licensePlate,
+                      cnic: member.cnic ?? prev.cnic,
+                    }));
+                  });
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to fetch member by id:", error);
+          });
+      }
     } catch (error) {
       console.error("Error parsing others edit data:", error);
     }
-  }, []);
+  }, [categories]);
 
   const handleInputChange = useCallback((
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -140,7 +185,31 @@ const AddOthersForm: React.FC = () => {
       if (formData.serviceCardNumber) fd.append("ServiceCardNumber", formData.serviceCardNumber);
       if (formData.utilityBill) fd.append("UtilityBill", formData.utilityBill);
       // Add other fields as needed (ZoneId, PlotNo, etc.)
-      await registerNonMember(fd);
+      if (isEditing) {
+        // Get id from localStorage
+        const editData = localStorage.getItem("editOthersData");
+        if (editData) {
+          const parsed = JSON.parse(editData);
+          if (parsed && parsed.id) {
+            fd.append("Id", parsed.id);
+          }
+        }
+        // Add Authorization header
+        let headers: Record<string, string> = {};
+        if (typeof window !== "undefined") {
+          const token = localStorage.getItem("authToken") || localStorage.getItem("accessToken") || "";
+          if (token) {
+            headers["Authorization"] = `Bearer ${token}`;
+          }
+        }
+        await fetch("https://dfpwebp.dhakarachi.org/api/smartdha/nonmemberregistration/update-member-type", {
+          method: "POST",
+          headers,
+          body: fd,
+        });
+      } else {
+        await registerNonMember(fd);
+      }
       setSubmitStatus("success");
       setShowSuccessModal(true);
       localStorage.removeItem("editOthersData");
@@ -166,42 +235,13 @@ const AddOthersForm: React.FC = () => {
     window.history.back();
   };
 
-  // Dynamic categories and subcategories logic
-  type Category = { label: string; uuid: string; raw?: any };
-  type SubCategory = { label: string; uuid: string };
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subCategories, setSubCategories] = useState<SubCategory[]>([]);
-
-  // Fetch categories on mount
-  useEffect(() => {
-    import("@/app/lib/api-client").then(({ apiClient }) => {
-      apiClient
-        .get("/api/nonmember/get-nonmember-category")
-        .then((res) => {
-          const arr = Array.isArray(res) ? res : (res as any[]);
-          if (Array.isArray(arr)) {
-            setCategories(
-              arr.map((item: any) => ({
-                label: item.displayName || item.name,
-                uuid: item.id,
-                raw: item,
-              }))
-            );
-          } else {
-            setCategories([]);
-          }
-        })
-        .catch(() => setCategories([]));
-    });
-  }, []);
-
   // Fetch subcategories when category changes
   useEffect(() => {
     if (formData.category) {
       import("@/app/lib/api-client").then(({ apiClient }) => {
         apiClient
           .get(`/api/nonmember/get-nonmember-subcategory-bycategoryid?Id=${formData.category}`)
-          .then((res) => {
+          .then((res: any) => {
             const arr = Array.isArray(res) ? res : (res as any[]);
             if (Array.isArray(arr)) {
               setSubCategories(
@@ -296,12 +336,13 @@ const AddOthersForm: React.FC = () => {
           </div>
 
           {/* Row 2: Password + Cell Number */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <FieldBox>
-              <FieldLabel text="Password" required />
-              <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
-            </FieldBox>
-
+          <div className={`grid gap-4 mb-4 ${isEditing ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}> 
+            {!isEditing && (
+              <FieldBox>
+                <FieldLabel text="Password" required />
+                <TextInput name="password" value={formData.password} placeholder="Password here" type="password" required />
+              </FieldBox>
+            )}
             <FieldBox>
               <FieldLabel text="Add Cell Number" required />
               <TextInput name="cellNumber" value={formData.cellNumber} placeholder="0300-1234567" type="tel" required />
@@ -489,7 +530,7 @@ const AddOthersForm: React.FC = () => {
               isOpen={showSuccessModal}
               onClose={handleSuccessClose}
               title="Success"
-              message="Registration successful!"
+              message={isEditing ? "Update successful!" : "Registration successful!"}
             />
           )}
           <Snackbar
